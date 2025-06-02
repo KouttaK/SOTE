@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SOTE - Expansor Texto</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="popup-container">
+    <header class="popup-header">
+      <h1>SOTE</h1>
+      <div class="toggle-container">
+        <label class="toggle">
+          <input type="checkbox" id="enabled-toggle" checked>
+          <span class="toggle-slider"></span>
+        </label>
+        <span id="status-text">Habilitado</span>
+      </div>
+    </header>
+    
+    <div class="search-container">
+      <input type="text" id="search-input" placeholder="Buscar abreviações..."">
+    </div>
+    
+    <div class="abbreviations-container">
+      <div class="abbreviations-list" id="abbreviations-list">
+        <!-- Abbreviations will be populated here -->
+        <div class="loading">Carregando abreviações...</div>
+      </div>
+    </div>
+    
+    <div class="quick-add-container">
+      <button id="add-btn" class="add-btn">+ Adicionar Nova</button>
+      <button id="dashboard-btn" class="dashboard-btn">Abrir Painel</button>
+    </div>
+    
+    <div id="add-form" class="add-form hidden">
+      <h2>Adicionar Nova Abreviação</h2>
+      <div class="form-group">
+        <label for="new-abbreviation">Abreviação</label>
+        <input type="text" id="new-abbreviation" placeholder="tdb, vlw">
+      </div>
+      <div class="form-group">
+        <label for="new-expansion">Expansão</label>
+        <input type="text" id="new-expansion" placeholder="tudo bem, valeu">
+      </div>
+      <div class="form-group">
+        <label for="new-category">Categoria</label>
+        <select id="new-category">
+          <option value="Common">Comum</option>
+          <option value="Personal">Pessoal</option>
+          <option value="Work">Trabalho</option>
+          <option value="Custom">Personalizada</option>
+        </select>
+      </div>
+      <div class="form-group checkbox">
+        <input type="checkbox" id="new-case-sensitive">
+        <label for="new-case-sensitive">Diferenciar Maiúsc./Minúsc.</label>
+      </div>
+      <div class="form-actions">
+        <button id="cancel-btn" class="cancel-btn">Cancelar</button>
+        <button id="save-btn" class="save-btn">Salvar</button>
+      </div>
+    </div>
+  </div>
+    <script src="../utils/db.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

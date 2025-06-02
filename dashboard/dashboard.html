@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sote - Painel</title>
+  <link rel="stylesheet" href="dashboard.css">
+</head>
+<body>
+  <header class="header">
+    <div class="container">
+      <div class="logo">
+        <h1>Sote</h1>
+        <span class="subtitle">Expansor de Texto</span>
+      </div>
+      <div class="actions">
+        <div class="toggle-container">
+          <label class="toggle">
+            <input type="checkbox" id="enabled-toggle" checked>
+            <span class="toggle-slider"></span>
+          </label>
+          <span id="status-text">Habiltiado</span>
+        </div>
+      </div>
+    </div>
+  </header>
+  
+  <main class="main">
+    <div class="container">
+      <div class="dashboard-grid">
+        <aside class="sidebar">
+          <div class="sidebar-section">
+            <h2>Categorias</h2>
+            <ul class="category-list" id="category-list">
+              <li class="category-item active" data-category="all">Todas</li>
+              <!-- Categories will be populated here -->
+            </ul>
+          </div>
+          
+          <div class="sidebar-section">
+            <h2>Ferramentas</h2>
+            <ul class="tools-list">
+              <li class="tools-item" id="import-btn">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                  <polyline points="17 8 12 3 7 8"></polyline>
+                  <line x1="12" y1="3" x2="12" y2="15"></line>
+                </svg>
+                <span>Importar</span>
+              </li>
+              <li class="tools-item" id="export-btn">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                  <polyline points="7 10 12 15 17 10"></polyline>
+                  <line x1="12" y1="15" x2="12" y2="3"></line>
+                </svg>
+                <span>Exportar</span>
+              </li>
+              <li class="tools-item" id="settings-btn">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="12" cy="12" r="3"></circle>
+                  <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                </svg>
+                <span>Configrações</span>
+              </li>
+            </ul>
+          </div>
+        </aside>
+        
+        <section class="content">
+          <div class="content-header">
+            <div class="search-container">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="search-icon">
+                <circle cx="11" cy="11" r="8"></circle>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+              </svg>
+              <input type="text" id="search-input" placeholder="Buscar abreviações...">
+            </div>
+            <button id="add-btn" class="add-btn">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+              <span>Adicionar Nova</span>
+            </button>
+          </div>
+          
+          <div class="content-body">
+            <div class="table-container">
+              <table class="abbreviations-table">
+                <thead>
+                  <tr>
+                    <th class="sortable" data-sort="abbreviation">Abreviação</th>
+                    <th>Expansão</th>
+                    <th class="sortable" data-sort="category">Categoria</th>
+                    <th class="sortable" data-sort="usageCount">Uso</th>
+                    <th class="sortable" data-sort="lastUsed">Último Uso</th>
+                    <th>Ações</th>
+                  </tr>
+                </thead>
+                <tbody id="abbreviations-list">
+                  <!-- Abbreviations will be populated here -->
+                  <tr>
+                    <td colspan="6" class="loading">Carregando abreviações...</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+  </main>
+  
+  <div id="modal-container" class="modal-container hidden">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 id="modal-title">Adicionar Nova Abreviação</h2>
+        <button id="modal-close" class="modal-close">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      
+      <div class="modal-body">
+        <form id="abbreviation-form">
+          <div class="form-grid">
+            <div class="form-group">
+              <label for="abbreviation">Abreviação</label>
+              <input type="text" id="abbreviation" placeholder="tdb, vlw, pf" required>
+            </div>
+            
+            <div class="form-group">
+              <label for="expansion">Expansão</label>
+              <input type="text" id="expansion" placeholder="Tudo bem, valeu, porfavor" required>
+            </div>
+            
+            <div class="form-group">
+              <label for="category">Categoria</label>
+              <select id="category">
+                <option value="Common">Comum</option>
+                <option value="Personal">Pessoal</option>
+                <option value="Work">Trabalho</option>
+                <option value="Custom">Personalizada</option>
+              </select>
+            </div>
+            
+            <div class="form-group">
+              <label for="custom-category">Categoria Personalizada</label>
+              <input type="text" id="custom-category" placeholder="Digite a categoria personalizada">
+            </div>
+            
+            <div class="form-group checkbox">
+              <input type="checkbox" id="case-sensitive">
+              <label for="case-sensitive">Diferenciar Maiúsc./Minúsc.</label>
+            </div>
+            
+            <div class="form-group checkbox">
+              <input type="checkbox" id="enabled" checked>
+              <label for="enabled">Habilitado</label>
+            </div>
+          </div>
+        </form>
+      </div>
+      
+      <div class="modal-footer">
+        <button id="modal-cancel" class="cancel-btn">Cancelar</button>
+        <button id="modal-save" class="save-btn">Salvar</button>
+      </div>
+    </div>
+  </div>
+  
+  <div id="import-modal" class="modal-container hidden">
+    <div class="modal">
+      <div class="modal-header">
+        <h2>Importar Abreviações</h2>
+        <button id="import-modal-close" class="modal-close">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      
+      <div class="modal-body">
+        <p>Importe abreviações de um arquivo JSON. O arquivo deve conter um array de objetos de abreviação."</p>
+        
+        <div class="form-group">
+          <label for="import-file">Selecionar arquivo</label>
+          <input type="file" id="import-file" accept=".json">
+        </div>
+        
+        <div class="form-group checkbox">
+          <input type="checkbox" id="import-replace" checked>
+          <label for="import-replace">Substituir abreviações existentes</label>
+        </div>
+      </div>
+      
+      <div class="modal-footer">
+        <button id="import-modal-cancel" class="cancel-btn">Cancelar</button>
+        <button id="import-modal-import" class="save-btn">Importar</button>
+      </div>
+    </div>
+  </div>
+  
+  <div id="settings-modal" class="modal-container hidden">
+    <div class="modal">
+      <div class="modal-header">
+        <h2>Configurações</h2>
+        <button id="settings-modal-close" class="modal-close">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      
+      <div class="modal-body">
+        <h3>Gatilhos de expansão</h3>
+        
+        <div class="form-group checkbox">
+          <input type="checkbox" id="trigger-space" checked>
+          <label for="trigger-space">Espaço</label>
+        </div>
+        
+        <div class="form-group checkbox">
+          <input type="checkbox" id="trigger-tab" checked>
+          <label for="trigger-tab">Tab</label>
+        </div>
+        
+        <div class="form-group checkbox">
+          <input type="checkbox" id="trigger-enter" checked>
+          <label for="trigger-enter">Enter</label>
+        </div>
+        
+        <h3>Configurações Avançadas</h3>
+        
+        <div class="form-group checkbox">
+          <input type="checkbox" id="setting-undo" checked>
+          <label for="setting-undo">Habilitar desfazer (Ctrl+Z)</label>
+        </div>
+        
+        <div class="form-group">
+          <button id="clear-data-btn" class="danger-btn">Apagar todos os dados</button>
+        </div>
+      </div>
+      
+      <div class="modal-footer">
+        <button id="settings-modal-cancel" class="cancel-btn">Cancelar</button>
+        <button id="settings-modal-save" class="save-btn">Salvar</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="../utils/db.js"></script>
+
+  <script src="dashboard.js" type="module"></script>
+</body>
+</html>
