@@ -33,8 +33,7 @@
             <h2>Categorias</h2>
             <ul class="category-list" id="category-list">
               <li class="category-item active" data-category="all">Todas</li>
-              <!-- Categories will be populated here -->
-            </ul>
+              </ul>
           </div>
           
           <div class="sidebar-section">
@@ -95,13 +94,13 @@
                     <th class="sortable" data-sort="category">Categoria</th>
                     <th class="sortable" data-sort="usageCount">Uso</th>
                     <th class="sortable" data-sort="lastUsed">Último Uso</th>
-                    <th>Ações</th>
+                    <th>Regras</th> 
+                    <th>Ações</th>   
                   </tr>
                 </thead>
                 <tbody id="abbreviations-list">
-                  <!-- Abbreviations will be populated here -->
                   <tr>
-                    <td colspan="6" class="loading">Carregando abreviações...</td>
+                    <td colspan="7" class="loading">Carregando abreviações...</td>
                   </tr>
                 </tbody>
               </table>
@@ -254,8 +253,132 @@
     </div>
   </div>
 
-  <script src="../utils/db.js"></script>
+  <div id="rules-modal" class="modal-container hidden">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 id="rules-modal-title">Regras de Expansão</h2>
+        <button id="rules-modal-close" class="modal-close">
+           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      
+      <div class="modal-body">
+        <div id="rules-list">
+          </div>
+        
+        <button id="add-rule-btn" class="add-btn" style="width: 100%; margin-bottom: var(--spacing-4);">
+          Adicionar Regra
+        </button>
+        
+        <form id="rule-form" class="hidden">
+          <h3>Nova Regra de Expansão</h3>
+          
+          <div class="form-group">
+            <label for="rule-type">Tipo de Regra</label>
+            <select id="rule-type">
+              <option value="dayOfWeek">Dia da Semana</option>
+              <option value="timeRange">Horário</option>
+              <option value="domain">Domínio do Site</option>
+              <option value="specialDate">Data Especial (Anual)</option>
+              <option value="combined">Combinada</option>
+            </select>
+          </div>
+          
+          <div id="days-section" class="form-group hidden">
+            <label>Dias da Semana</label>
+            <div class="checkbox-group">
+                <label><input type="checkbox" name="rule-day" value="0"> Dom</label>
+                <label><input type="checkbox" name="rule-day" value="1"> Seg</label>
+                <label><input type="checkbox" name="rule-day" value="2"> Ter</label>
+                <label><input type="checkbox" name="rule-day" value="3"> Qua</label>
+                <label><input type="checkbox" name="rule-day" value="4"> Qui</label>
+                <label><input type="checkbox" name="rule-day" value="5"> Sex</label>
+                <label><input type="checkbox" name="rule-day" value="6"> Sáb</label>
+            </div>
+          </div>
+          
+          <div id="time-section" class="form-group hidden">
+            <label>Horário</label>
+            <div class="time-range">
+              <input type="number" id="start-hour" min="0" max="23" placeholder="Início (0-23)">
+              <span>até</span>
+              <input type="number" id="end-hour" min="0" max="23" placeholder="Fim (0-23)">
+            </div>
+          </div>
+          
+          <div id="domain-section" class="form-group hidden">
+            <label for="domains">Domínios (um por linha)</label>
+            <textarea id="domains" rows="3" placeholder="example.com&#10;anotherexample.org"></textarea>
+          </div>
 
+          <div id="special-date-section" class="form-group hidden">
+            <label>Data Especial (Anual)</label>
+            <div class="date-range">
+              <input type="number" id="special-month" min="1" max="12" placeholder="Mês (1-12)">
+              <span>/</span>
+              <input type="number" id="special-day" min="1" max="31" placeholder="Dia (1-31)">
+            </div>
+            <small>Ex: Para 25 de Dezembro, use Mês: 12, Dia: 25.</small>
+          </div>
+
+          <div id="combined-rule-section" class="form-group hidden">
+            <label for="combined-operator">Operador Lógico Principal</label>
+            <select id="combined-operator">
+              <option value="AND">E (Todas as condições devem ser verdadeiras)</option>
+              <option value="OR">OU (Pelo menos uma condição deve ser verdadeira)</option>
+            </select>
+            
+            <h4>Sub-condições:</h4>
+            <div id="sub-conditions-list">
+              </div>
+            <button type="button" id="add-sub-condition-btn" class="btn-secondary" style="background-color: var(--gray-200); color: var(--gray-800); padding: var(--spacing-2) var(--spacing-3); border: 1px solid var(--gray-300); border-radius: var(--radius-md); cursor: pointer; margin-top: var(--spacing-2);">Adicionar Sub-condição</button>
+
+            <template id="sub-condition-template">
+              <div class="sub-condition-item" style="border: 1px solid var(--gray-200); padding: var(--spacing-3); margin-top: var(--spacing-3); border-radius: var(--radius-md);">
+                <div class="form-group">
+                  <label for="sub-condition-type">Tipo da Sub-condição</label>
+                  <select class="sub-condition-type">
+                    <option value="dayOfWeek">Dia da Semana</option>
+                    <option value="timeRange">Horário</option>
+                    <option value="domain">Domínio</option>
+                    <option value="specialDate">Data Especial</option>
+                  </select>
+                </div>
+                <div class="sub-condition-fields" style="margin-top: var(--spacing-2); margin-bottom: var(--spacing-2);">
+                  </div>
+                 <div class="form-group checkbox">
+                    <input type="checkbox" class="sub-condition-negate">
+                    <label>NÃO (Inverter esta condição)</label>
+                </div>
+                <button type="button" class="remove-sub-condition-btn danger-btn" style="background-color: var(--error); color: white; padding: var(--spacing-1) var(--spacing-2); font-size: 0.75rem; border-radius: var(--radius-sm); margin-top: var(--spacing-2);">Remover Sub-condição</button>
+              </div>
+            </template>
+          </div>
+          
+          <div class="form-group">
+            <label for="rule-expansion">Expansão</label>
+            <input type="text" id="rule-expansion" placeholder="Texto expandido para esta regra" required>
+          </div>
+          
+          <div class="form-group">
+            <label for="rule-priority">Prioridade</label>
+            <input type="number" id="rule-priority" min="0" max="100" value="0">
+            <small>Maior prioridade é aplicada primeiro (0 é a padrão).</small>
+          </div>
+        </form>
+      </div>
+      
+      <div class="modal-footer">
+        <button id="rules-modal-cancel" class="cancel-btn">Cancelar</button>
+        <button id="rules-modal-save" class="save-btn">Salvar Regra</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="../utils/db.js"></script>
   <script src="dashboard.js" type="module"></script>
 </body>
 </html>

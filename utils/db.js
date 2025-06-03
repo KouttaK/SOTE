@@ -3,13 +3,10 @@
   'use strict';
 
   const DB_NAME = 'textExpander';
-  const DB_VERSION = 1;
+  const DB_VERSION = 2;
   const STORE_NAME = 'abbreviations';
+  const RULES_STORE = 'expansionRules';
 
-  /**
-   * Opens the IndexedDB database
-   * @returns {Promise<IDBDatabase>} A promise that resolves to the database instance
-   */
   function openDatabase() {
     return new Promise((resolve, reject) => {
       const request = indexedDB.open(DB_NAME, DB_VERSION);
@@ -34,6 +31,12 @@
           store.createIndex('lastUsed', 'lastUsed', { unique: false });
           store.createIndex('usageCount', 'usageCount', { unique: false });
         }
+
+        if (!db.objectStoreNames.contains(RULES_STORE)) {
+          const rulesStore = db.createObjectStore(RULES_STORE, { keyPath: 'id', autoIncrement: true });
+          rulesStore.createIndex('abbreviationId', 'abbreviationId', { unique: false });
+          rulesStore.createIndex('type', 'type', { unique: false });
+        }
       };
     });
   }
@@ -45,14 +48,87 @@
     async getAllAbbreviations() {
       const db = await openDatabase();
       return new Promise((resolve, reject) => {
-        const transaction = db.transaction(STORE_NAME, 'readonly');
+        const transaction = db.transaction([STORE_NAME, RULES_STORE], 'readonly');
         const store = transaction.objectStore(STORE_NAME);
-        const request = store.getAll();
+        const rulesStore = transaction.objectStore(RULES_STORE);
+        
+        Promise.all([
+          new Promise((res, rej) => {
+            const request = store.getAll();
+            request.onsuccess = () => res(request.result);
+            request.onerror = () => rej(new Error('Failed to get abbreviations'));
+          }),
+          new Promise((res, rej) => {
+            const request = rulesStore.getAll();
+            request.onsuccess = () => res(request.result);
+            request.onerror = () => rej(new Error('Failed to get rules'));
+          })
+        ]).then(([abbreviations, rules]) => {
+          // Attach rules to their corresponding abbreviations
+          abbreviations.forEach(abbr => {
+            abbr.rules = rules.filter(rule => rule.abbreviationId === abbr.abbreviation);
+          });
+          resolve(abbreviations);
+        }).catch(reject);
+      });
+    },
+
+    async addExpansionRule(rule) {
+      const db = await openDatabase();
+      return new Promise((resolve, reject) => {
+        const transaction = db.transaction(RULES_STORE, 'readwrite');
+        const store = transaction.objectStore(RULES_STORE);
+        
+        const request = store.add(rule);
         
         request.onsuccess = () => resolve(request.result);
         request.onerror = () => {
-            console.error('Failed to get abbreviations', request.error);
-            reject(new Error('Failed to get abbreviations'));
+          console.error('Failed to add rule', request.error);
+          reject(new Error('Failed to add rule'));
+        };
+        
+        transaction.oncomplete = () => {
+          chrome.runtime.sendMessage({ type: 'ABBREVIATIONS_UPDATED' });
+        };
+      });
+    },
+
+    async updateExpansionRule(rule) {
+      const db = await openDatabase();
+      return new Promise((resolve, reject) => {
+        const transaction = db.transaction(RULES_STORE, 'readwrite');
+        const store = transaction.objectStore(RULES_STORE);
+        
+        const request = store.put(rule);
+        
+        request.onsuccess = () => resolve();
+        request.onerror = () => {
+          console.error('Failed to update rule', request.error);
+          reject(new Error('Failed to update rule'));
+        };
+        
+        transaction.oncomplete = () => {
+          chrome.runtime.sendMessage({ type: 'ABBREVIATIONS_UPDATED' });
+        };
+      });
+    },
+
+    async deleteExpansionRule(ruleId) {
+      const db = await openDatabase();
+      return new Promise((resolve, reject) => {
+        const transaction = db.transaction(RULES_STORE, 'readwrite');
+        const store = transaction.objectStore(RULES_STORE);
+        
+        const request = store.delete(ruleId);
+        
+        request.onsuccess = () => resolve();
+        request.onerror = () => {
+          console.error('Failed to delete rule', request.error);
+          reject(new Error('Failed to delete rule'));
+        };
+        
+        transaction.oncomplete = () => {
+          chrome.runtime.sendMessage({ type: 'ABBREVIATIONS_UPDATED' });
         };
       });
     },
