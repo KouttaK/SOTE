@@ -10,44 +10,59 @@ const cancelBtn = document.getElementById('cancel-btn');
 const saveBtn = document.getElementById('save-btn');
 const newAbbreviation = document.getElementById('new-abbreviation');
 const newExpansion = document.getElementById('new-expansion');
-const newCategory = document.getElementById('new-category');
+const newCategory = document.getElementById('new-category'); //
 const newCaseSensitive = document.getElementById('new-case-sensitive');
+
+// ADICIONAR ESTAS REFERÊNCIAS
+const customCategoryGroup = document.getElementById('custom-category-group');
+const newCustomCategoryInput = document.getElementById('new-custom-category');
 
 // State
 let abbreviations = [];
 let filteredAbbreviations = [];
 let currentEditId = null;
 let isEnabled = true;
-
 /**
  * Initialize the popup
  */
 async function init() {
-  // Check if TextExpanderDB is available
-  if (!window.TextExpanderDB || typeof window.TextExpanderDB.getAllAbbreviations !== 'function') {
-    console.error("TextExpanderDB não foi inicializado corretamente..");
-    abbreviationsList.innerHTML = `<div class="empty-state"><p>Erro ao inicializar. Verifique o console.</p></div>`;
+  if (!window.TextExpanderDB || typeof window.TextExpanderDB.getAllAbbreviations !== 'function') { //
+    console.error("TextExpanderDB não foi inicializado corretamente.."); //
+    abbreviationsList.innerHTML = `<div class="empty-state"><p>Erro ao inicializar. Verifique o console.</p></div>`; //
     return;
   }
 
-  await loadAbbreviations();
-  await loadCategories();
+  await loadAbbreviations(); //
+  await loadCategories(); //
 
-  searchInput.addEventListener('input', handleSearch);
-  enabledToggle.addEventListener('change', handleToggleEnabled);
-  addBtn.addEventListener('click', showAddForm);
-  dashboardBtn.addEventListener('click', openDashboard);
-  cancelBtn.addEventListener('click', hideAddForm);
-  saveBtn.addEventListener('click', handleSaveAbbreviation);
+  searchInput.addEventListener('input', handleSearch); //
+  enabledToggle.addEventListener('change', handleToggleEnabled); //
+  addBtn.addEventListener('click', showAddForm); //
+  dashboardBtn.addEventListener('click', openDashboard); //
+  cancelBtn.addEventListener('click', hideAddForm); //
+  saveBtn.addEventListener('click', handleSaveAbbreviation); //
 
-  chrome.storage.sync.get('enabled', (result) => {
-    if (result.hasOwnProperty('enabled')) {
-      isEnabled = result.enabled;
-      enabledToggle.checked = isEnabled;
-      statusText.textContent = isEnabled ? 'Enabled' : 'Disabled';
+  // ADICIONAR: Manipulador de eventos para o seletor de categoria
+  if (newCategory) {
+    newCategory.addEventListener('change', function() {
+      if (this.value === 'Personalizada') {
+        if (customCategoryGroup) customCategoryGroup.style.display = 'block';
+        if (newCustomCategoryInput) newCustomCategoryInput.focus();
+      } else {
+        if (customCategoryGroup) customCategoryGroup.style.display = 'none';
+      }
+    });
+  }
+
+  chrome.storage.sync.get('enabled', (result) => { //
+    if (result.hasOwnProperty('enabled')) { //
+      isEnabled = result.enabled; //
+      enabledToggle.checked = isEnabled; //
+      statusText.textContent = isEnabled ? 'Habilitado' : 'Disabilitado'; // MODIFICADO para Português, como no restante do código
     }
   });
 }
+
 
 /**
  * Load abbreviations from the database
@@ -72,24 +87,45 @@ async function loadAbbreviations() {
  */
 async function loadCategories() {
   try {
-    const categories = await window.TextExpanderDB.getAllCategories();
+    const categories = await window.TextExpanderDB.getAllCategories(); //
     
-    while (newCategory.options.length > 4) {
-      newCategory.remove(4);
+    // Mantém as opções padrão e remove apenas as carregadas dinamicamente anteriormente
+    const defaultOptionsCount = Array.from(newCategory.options).filter(opt => ['Comum', 'Pessoal', 'Trabalho', 'Personalizada'].includes(opt.value)).length;
+    while (newCategory.options.length > defaultOptionsCount) { //
+      // Encontra a primeira opção que não é uma das padrão para remover
+      let removed = false;
+      for (let i = 0; i < newCategory.options.length; i++) {
+          if (!['Comum', 'Pessoal', 'Trabalho', 'Personalizada'].includes(newCategory.options[i].value)) {
+              newCategory.remove(i);
+              removed = true;
+              break;
+          }
+      }
+      if (!removed) break; // Caso só restem as padrões
     }
     
-    categories.forEach(category => {
-      if (!['Common', 'Personal', 'Work', 'Custom'].includes(category)) {
-        const option = document.createElement('option');
-        option.value = category;
-        option.textContent = category;
-        newCategory.appendChild(option);
+    const existingOptionValues = new Set(Array.from(newCategory.options).map(opt => opt.value));
+
+    categories.forEach(category => { //
+      if (!existingOptionValues.has(category)) { // // Evita duplicar opções já existentes
+        const option = document.createElement('option'); //
+        option.value = category; //
+        option.textContent = category; //
+        // Insere antes da opção "Personalizada" se ela existir, ou no final
+        const personalizadaOption = Array.from(newCategory.options).find(opt => opt.value === 'Personalizada');
+        if (personalizadaOption) {
+            newCategory.insertBefore(option, personalizadaOption);
+        } else {
+            newCategory.appendChild(option); //
+        }
+        existingOptionValues.add(category); // Adiciona ao set para futuras checagens
       }
     });
   } catch (error) {
-    console.error('Erro ao carregar categorias:', error);
+    console.error('Erro ao carregar categorias:', error); //
   }
 }
+
 
 /**
  * Render abbreviations in the list
@@ -198,15 +234,32 @@ function handleToggleEnabled() {
 /**
  * Show the add form
  */
+/**
+ * Show the add form
+ */
 function showAddForm() {
-  addForm.classList.remove('hidden');
-  newAbbreviation.focus();
+  addForm.classList.remove('hidden'); //
+  newAbbreviation.focus(); //
   
-  if (!currentEditId) {
-    newAbbreviation.value = '';
-    newExpansion.value = '';
-    newCategory.value = 'Common';
-    newCaseSensitive.checked = false;
+  if (!currentEditId) { // Adicionando nova abreviação
+    newAbbreviation.value = ''; //
+    newAbbreviation.readOnly = false;
+    newExpansion.value = ''; //
+    newCategory.value = 'Comum'; //
+    newCaseSensitive.checked = false; //
+    if (newCustomCategoryInput) newCustomCategoryInput.value = '';
+  } else { // Editando abreviação existente
+    newAbbreviation.readOnly = true; // Campo abreviação não deve ser editável
+    // Valores são preenchidos por handleEditAbbreviation
+  }
+
+  // Garante que o campo de categoria personalizada seja exibido/oculto corretamente
+  if (newCategory) {
+    if (newCategory.value === 'Personalizada') {
+      if (customCategoryGroup) customCategoryGroup.style.display = 'block';
+    } else {
+      if (customCategoryGroup) customCategoryGroup.style.display = 'none';
+    }
   }
 }
 
@@ -214,8 +267,12 @@ function showAddForm() {
  * Hide the add form
  */
 function hideAddForm() {
-  addForm.classList.add('hidden');
-  currentEditId = null;
+  addForm.classList.add('hidden'); //
+  currentEditId = null; //
+  // ADICIONAR: Ocultar e limpar campo de categoria personalizada
+  if (customCategoryGroup) customCategoryGroup.style.display = 'none';
+  if (newCustomCategoryInput) newCustomCategoryInput.value = '';
+  newAbbreviation.readOnly = false; // Reseta para caso de nova adição
 }
 
 /**
@@ -231,61 +288,90 @@ function openDashboard() {
  * Handle saving a new abbreviation
  */
 async function handleSaveAbbreviation() {
-  const abbreviation = newAbbreviation.value.trim();
-  const expansion = newExpansion.value.trim();
-  const category = newCategory.value;
-  const caseSensitive = newCaseSensitive.checked;
+  const abbreviation = newAbbreviation.value.trim(); //
+  const expansion = newExpansion.value.trim(); //
+  let category = newCategory.value; //
+  const caseSensitive = newCaseSensitive.checked; //
   
-  if (!abbreviation || !expansion) {
-    alert('Por favor, insira a abreviação e a expansão.');
-    return;
+  if (!abbreviation || !expansion) { //
+    alert('Por favor, insira a abreviação e a expansão.'); //
+    return; //
+  }
+  
+  // ADICIONAR: Lógica para obter nome da categoria personalizada
+  if (category === 'Personalizada') {
+    const customName = newCustomCategoryInput ? newCustomCategoryInput.value.trim() : '';
+    if (!customName) {
+        alert('Por favor, insira o nome da categoria personalizada.');
+        if (newCustomCategoryInput) newCustomCategoryInput.focus();
+        return;
+    }
+    category = customName;
   }
   
   try {
     let abbrData = {
       abbreviation,
       expansion,
-      category,
+      category, // Usa o valor da categoria (pode ser o nome personalizado)
       caseSensitive,
-      enabled: true,
-      // These will be set if new, or preserved if editing
-      createdAt: new Date().toISOString(),
-      lastUsed: null,
-      usageCount: 0
+      enabled: true, //
+      createdAt: new Date().toISOString(), //
+      lastUsed: null, //
+      usageCount: 0 //
     };
     
-    if (currentEditId) {
-      const existingAbbr = abbreviations.find(a => a.abbreviation === currentEditId);
-      if (existingAbbr) {
-        abbrData.createdAt = existingAbbr.createdAt;
-        abbrData.lastUsed = existingAbbr.lastUsed;
-        abbrData.usageCount = existingAbbr.usageCount;
+    if (currentEditId) { //
+      const existingAbbr = abbreviations.find(a => a.abbreviation === currentEditId); //
+      if (existingAbbr) { //
+        // Mantém os dados existentes que não são editados no formulário da popup
+        abbrData.createdAt = existingAbbr.createdAt; //
+        abbrData.lastUsed = existingAbbr.lastUsed; //
+        abbrData.usageCount = existingAbbr.usageCount; //
+        abbrData.enabled = existingAbbr.enabled; // Assume que enabled não é alterado na popup quick-add
       }
-      await window.TextExpanderDB.updateAbbreviation(abbrData);
+      await window.TextExpanderDB.updateAbbreviation(abbrData); //
     } else {
-      await window.TextExpanderDB.addAbbreviation(abbrData);
+      await window.TextExpanderDB.addAbbreviation(abbrData); //
     }
     
-    await loadAbbreviations();
-    hideAddForm();
+    await loadAbbreviations(); //
+    await loadCategories(); // Recarrega categorias, pode haver uma nova
+    hideAddForm(); //
   } catch (error) {
-    console.error('Erro ao salvar abreviação:', error);
-    alert('Erro ao salvar abreviação. Por favor, tente novamente.');
+    console.error('Erro ao salvar abreviação:', error); //
+    if (error.message && error.message.includes('Key already exists')) {
+        alert('Erro ao salvar: A abreviação já existe.');
+    } else {
+        alert('Erro ao salvar abreviação. Por favor, tente novamente.'); //
+    }
   }
 }
+
 
 /**
  * Handle editing an abbreviation
  * @param {Object} abbr The abbreviation to edit
  */
-function handleEditAbbreviation(abbr) {
-  currentEditId = abbr.abbreviation;
-  newAbbreviation.value = abbr.abbreviation;
-  newExpansion.value = abbr.expansion;
-  newCategory.value = abbr.category || 'Common';
-  newCaseSensitive.checked = abbr.caseSensitive || false;
+function handleEditAbbreviation(abbr) { //
+  currentEditId = abbr.abbreviation; //
+  newAbbreviation.value = abbr.abbreviation; //
+  newExpansion.value = abbr.expansion; //
+  newCaseSensitive.checked = abbr.caseSensitive || false; //
+
+  const standardCategories = ['Comum', 'Pessoal', 'Trabalho', 'Personalizada'];
+  if (abbr.category && !standardCategories.includes(abbr.category)) {
+    // É uma categoria personalizada existente
+    newCategory.value = 'Personalizada';
+    if (customCategoryGroup) customCategoryGroup.style.display = 'block';
+    if (newCustomCategoryInput) newCustomCategoryInput.value = abbr.category;
+  } else {
+    newCategory.value = abbr.category || 'Comum'; //
+    if (customCategoryGroup) customCategoryGroup.style.display = 'none';
+    if (newCustomCategoryInput) newCustomCategoryInput.value = '';
+  }
   
-  showAddForm();
+  showAddForm(); //
 }
 
 /**

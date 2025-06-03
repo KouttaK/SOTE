@@ -13,7 +13,7 @@ self.addEventListener('install', (event) => {
           abbreviation: 'btw', 
           expansion: 'by the way',
           caseSensitive: false,
-          category: 'Common',
+          category: 'Comum',
           enabled: true,
           createdAt: new Date().toISOString(),
           lastUsed: null,
@@ -23,7 +23,7 @@ self.addEventListener('install', (event) => {
           abbreviation: 'afaik', 
           expansion: 'as far as I know',
           caseSensitive: false,
-          category: 'Common',
+          category: 'Comum',
           enabled: true,
           createdAt: new Date().toISOString(),
           lastUsed: null,
@@ -33,7 +33,7 @@ self.addEventListener('install', (event) => {
           abbreviation: 'ty', 
           expansion: 'thank you',
           caseSensitive: false,
-          category: 'Common',
+          category: 'Comum',
           enabled: true,
           createdAt: new Date().toISOString(),
           lastUsed: null,
@@ -46,7 +46,7 @@ self.addEventListener('install', (event) => {
       }
       
       await transaction.complete;
-      console.log('Database initialized with default abbreviations');
+      console.log('Banco de dados inicializado com abreviações padrão');
     })()
   );
 });
@@ -70,11 +70,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           }
         };
         getAllRequest.onerror = (event) => {
-          console.error('Error in getAllRequest:', event.target.error);
-          sendResponse({ error: 'Failed to retrieve abbreviations.' });
+          console.error('Erro em getAllRequest:', event.target.error);
+          sendResponse({ error: 'Falha ao recuperar abreviações.' });
         };
       } catch (error) {
-        console.error('Error fetching abbreviations:', error);
+        console.error('Erro ao buscar abreviações:', error);
         sendResponse({ error: error.message });
       }
     })();
@@ -102,16 +102,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
               // console.log('Usage updated for:', abbreviationKey);
             };
             putRequest.onerror = (event) => {
-              console.error('Error putting updated abbr:', event.target.error);
+              console.error('Erro ao colocar abreviação atualizada:', event.target.error);
             };
           }
         };
         getRequest.onerror = (event) => {
-          console.error('Error getting abbr for update:', event.target.error);
+          console.error('Erro ao obter abr para atualização:', event.target.error);
         };
         
         transaction.onerror = (event) => {
-            console.error('Transaction error during usage update:', event.target.error);
+            console.error('Erro de transação durante atualização de uso:', event.target.error);
         };
 
       } catch (error) {

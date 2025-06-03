@@ -52,7 +52,7 @@ const clearDataBtn = document.getElementById('clear-data-btn');
  */
 let abbreviations = [];
 let filteredAbbreviations = [];
-let currentCategory = 'all';
+let currentCategory = 'All';
 let currentSort = {
   column: 'abbreviation',
   direction: 'asc'
@@ -66,14 +66,20 @@ let isEnabled = true;
 async function init() {
   // Ensure TextExpanderDB is loaded
   if (!window.TextExpanderDB || typeof window.TextExpanderDB.getAllAbbreviations !== 'function') {
-    console.error("TextExpanderDB is not properly initialized for dashboard.js.");
-    abbreviationsList.innerHTML = `<tr><td colspan="6" class="loading">Error initializing. Check console.</td></tr>`;
+    console.error("TextExpanderDB não foi inicializado corretamente para dashboard.js.");
+    abbreviationsList.innerHTML = `<tr><td colspan="6" class="loading">Erro ao inicializar. Verifique o console.</td></tr>`;
     return;
   }
 
   await loadAbbreviations();
-  await loadCategories();
+  await loadCategories(); // Popula categorias dinâmicas e seus listeners
   
+  // ADICIONADO: Adiciona manipulador de eventos para o item de categoria estático "Todas"
+  const allCategoryItem = categoryList.querySelector('[data-category="all"]');
+  if (allCategoryItem) {
+    allCategoryItem.addEventListener('click', () => handleCategoryFilter('all'));
+  }
+
   searchInput.addEventListener('input', handleSearch);
   enabledToggle.addEventListener('change', handleToggleEnabled);
   addBtn.addEventListener('click', () => showModal());
@@ -89,7 +95,7 @@ async function init() {
   });
   
   categorySelect.addEventListener('change', function() {
-    if (this.value === 'Custom') {
+    if (this.value === 'Personalizada') {
       customCategoryInput.style.display = 'block';
     } else {
       customCategoryInput.style.display = 'none';
@@ -112,7 +118,7 @@ async function init() {
     if (result.hasOwnProperty('enabled')) {
       isEnabled = result.enabled;
       enabledToggle.checked = isEnabled;
-      statusText.textContent = isEnabled ? 'Enabled' : 'Disabled';
+      statusText.textContent = isEnabled ? 'Habilitado' : 'Disabilitado';
     }
   });
   
@@ -127,10 +133,10 @@ async function loadAbbreviations() {
     abbreviations = await window.TextExpanderDB.getAllAbbreviations();
     filterAbbreviations();
   } catch (error) {
-    console.error('Error loading abbreviations:', error);
+    console.error('Erro ao carregar abreviações:', error);
     abbreviationsList.innerHTML = `
       <tr>
-        <td colspan="6" class="loading">Error loading abbreviations. Please try again.</td>
+        <td colspan="6" class="loading">Erro ao carregar abreviações. Por favor, tente novamente.</td>
       </tr>
     `;
   }
@@ -161,7 +167,7 @@ async function loadCategories() {
     }
     
     categories.forEach(category => {
-      if (!['Common', 'Personal', 'Work', 'Custom'].includes(category)) {
+      if (!['Comum', 'Pessoal', 'Trbalho', 'Personalizada'].includes(category)) {
         const option = document.createElement('option');
         option.value = category;
         option.textContent = category;
@@ -171,7 +177,7 @@ async function loadCategories() {
     
     customCategoryInput.style.display = 'none';
   } catch (error) {
-    console.error('Error loading categories:', error);
+    console.error('Erro ao carregar categorias:', error);
   }
 }
 
@@ -182,6 +188,7 @@ function filterAbbreviations() {
   const searchTerm = searchInput.value.trim().toLowerCase();
   
   filteredAbbreviations = abbreviations.filter(abbr => {
+    // MODIFICADO: Usa 'all' como a palavra-chave para mostrar todas as categorias
     const categoryMatch = currentCategory === 'all' || abbr.category === currentCategory;
     const searchMatch = searchTerm === '' || 
                        abbr.abbreviation.toLowerCase().includes(searchTerm) || 
@@ -231,7 +238,7 @@ function renderAbbreviations() {
   if (filteredAbbreviations.length === 0) {
     abbreviationsList.innerHTML = `
       <tr>
-        <td colspan="6" class="loading">No abbreviations found. Add some to get started!</td>
+        <td colspan="6" class="loading">Nenhuma abreviação encontrada. Adicione algumas para começar!</td>
       </tr>
     `;
     return;
@@ -241,7 +248,7 @@ function renderAbbreviations() {
   
   filteredAbbreviations.forEach(abbr => {
     const row = document.createElement('tr');
-    let lastUsedText = 'Never';
+    let lastUsedText = 'Sem uso';
     if (abbr.lastUsed) {
       const date = new Date(abbr.lastUsed);
       lastUsedText = date.toLocaleString();
@@ -250,7 +257,7 @@ function renderAbbreviations() {
     row.innerHTML = `
       <td>${abbr.abbreviation}</td>
       <td>${abbr.expansion}</td>
-      <td><span class="category-badge">${abbr.category || 'Uncategorized'}</span></td>
+      <td><span class="category-badge">${abbr.category || 'Sem categoria'}</span></td>
       <td>${abbr.usageCount || 0}</td>
       <td>${lastUsedText}</td>
       <td>
@@ -331,7 +338,7 @@ function handleSort(column) {
  */
 function handleToggleEnabled() {
   isEnabled = enabledToggle.checked;
-  statusText.textContent = isEnabled ? 'Enabled' : 'Disabled';
+  statusText.textContent = isEnabled ? 'Habilitado' : 'Disabilitado';
   chrome.storage.sync.set({ enabled: isEnabled });
   chrome.tabs.query({}, (tabs) => {
     tabs.forEach(tab => {
@@ -350,32 +357,32 @@ function showModal(abbr = null) {
   modalContainer.classList.remove('hidden');
   
   if (abbr) {
-    modalTitle.textContent = 'Edit Abbreviation';
+    modalTitle.textContent = 'Editar Abreviação';
     abbreviationInput.value = abbr.abbreviation;
     abbreviationInput.readOnly = true;
     expansionInput.value = abbr.expansion;
-    categorySelect.value = abbr.category || 'Common';
+    categorySelect.value = abbr.category || 'Comum';
     caseSensitiveCheckbox.checked = abbr.caseSensitive || false;
     enabledCheckbox.checked = abbr.enabled !== false;
     currentEditId = abbr.abbreviation;
     
-    if (!['Common', 'Personal', 'Work', 'Custom'].includes(abbr.category) && 
+    if (!['Comum', 'Pessoal', 'Trabalho', 'Personalizada'].includes(abbr.category) && 
         categorySelect.querySelector(`option[value="${abbr.category}"]`)) {
       categorySelect.value = abbr.category;
       customCategoryInput.style.display = 'none';
-    } else if (!['Common', 'Personal', 'Work'].includes(abbr.category)) {
-      categorySelect.value = 'Custom';
+    } else if (!['Comum', 'Pessoal', 'Trabalho'].includes(abbr.category)) {
+      categorySelect.value = 'Personalizada';
       customCategoryInput.value = abbr.category || '';
       customCategoryInput.style.display = 'block';
     } else {
       customCategoryInput.style.display = 'none';
     }
   } else {
-    modalTitle.textContent = 'Add New Abbreviation';
+    modalTitle.textContent = 'Adicionar Nova Abreviação';
     abbreviationInput.value = '';
     abbreviationInput.readOnly = false;
     expansionInput.value = '';
-    categorySelect.value = 'Common';
+    categorySelect.value = 'Comum';
     caseSensitiveCheckbox.checked = false;
     enabledCheckbox.checked = true;
     currentEditId = null;
@@ -404,12 +411,12 @@ async function handleSaveAbbreviation() {
   const enabled = enabledCheckbox.checked;
   
   if (!abbreviation || !expansion) {
-    alert('Please enter both abbreviation and expansion.');
+    alert('Por favor, insira a abreviação e a expansão.');
     return;
   }
   
-  if (category === 'Custom') {
-    category = customCategoryInput.value.trim() || 'Custom';
+  if (category === 'Personalizada') {
+    category = customCategoryInput.value.trim() || 'Personalizada';
   }
   
   try {
@@ -440,8 +447,8 @@ async function handleSaveAbbreviation() {
     await loadCategories();
     hideModal();
   } catch (error) {
-    console.error('Error saving abbreviation:', error);
-    alert('Error saving abbreviation. Please try again.');
+    console.error('Erro ao salvar abreviação:', error);
+    alert('Erro ao salvar abreviação. Por favor, tente novamente.');
   }
 }
 
@@ -458,14 +465,14 @@ function handleEditAbbreviation(abbr) {
  * @param {string} abbreviation The abbreviation to delete
  */
 async function handleDeleteAbbreviation(abbreviation) {
-  if (confirm(`Are you sure you want to delete "${abbreviation}"?`)) {
+  if (confirm(`Tem certeza que deseja excluir "${abbreviation}"?`)) {
     try {
       await window.TextExpanderDB.deleteAbbreviation(abbreviation);
       await loadAbbreviations();
       await loadCategories();
     } catch (error) {
-      console.error('Error deleting abbreviation:', error);
-      alert('Error deleting abbreviation. Please try again.');
+      console.error('Erro ao excluir abreviação::', error);
+      alert('Erro ao excluir abreviação. Por favor, tente novamente.');
     }
   }
 }
@@ -491,7 +498,7 @@ function hideImportModal() {
 async function handleImport() {
   const file = importFile.files[0];
   if (!file) {
-    alert('Please select a file to import.');
+    alert('Por favor, selecione um arquivo para importar.');
     return;
   }
   
@@ -500,7 +507,7 @@ async function handleImport() {
     const importData = JSON.parse(text);
     
     if (!Array.isArray(importData)) {
-      alert('Invalid import file format. Expected an array of abbreviations.');
+      alert('Formato de arquivo de importação inválido. Esperado um array de abreviações.');
       return;
     }
     
@@ -511,7 +518,7 @@ async function handleImport() {
     );
     
     if (validAbbreviations.length === 0) {
-      alert('No valid abbreviations found in the import file.');
+      alert('Nenhuma abreviação válida encontrada no arquivo de importação.');
       return;
     }
     
@@ -525,10 +532,10 @@ async function handleImport() {
     await loadAbbreviations();
     await loadCategories();
     hideImportModal();
-    alert(`Successfully imported ${importCount} abbreviations.`);
+    alert(`Importadas ${importCount} abreviações com sucesso.`);
   } catch (error) {
-    console.error('Error importing abbreviations:', error);
-    alert('Error importing abbreviations. Please check the file format and try again.');
+    console.error('Erro ao importar abreviações:', error);
+    alert('Erro ao importar abreviações. Verifique o formato do arquivo e tente novamente.');
   }
 }
 
@@ -548,8 +555,8 @@ function handleExport() {
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
   } catch (error) {
-    console.error('Error exporting abbreviations:', error);
-    alert('Error exporting abbreviations. Please try again.');
+    console.error('Erro ao exportar abreviações:', error);
+    alert('Erro ao exportar abreviações. Por favor, tente novamente.');
   }
 }
 
@@ -591,7 +598,7 @@ function handleSaveSettings() {
   };
   chrome.storage.sync.set(settings, () => {
     hideSettingsModal();
-    alert('Settings saved successfully.');
+    alert('Configurações salvas com sucesso.');
   });
 }
 
@@ -599,16 +606,16 @@ function handleSaveSettings() {
  * Handle clearing all data
  */
 async function handleClearData() {
-  if (confirm('Are you sure you want to clear all abbreviations? This action cannot be undone.')) {
+  if (confirm('Tem certeza que deseja limpar todas as abreviações? Esta ação não pode ser desfeita.')) {
     try {
       await window.TextExpanderDB.clearAllAbbreviations();
       await loadAbbreviations();
       await loadCategories();
       hideSettingsModal();
-      alert('All abbreviations have been cleared.');
+      alert('Todas as abreviações foram limpas.');
     } catch (error) {
-      console.error('Error clearing abbreviations:', error);
-      alert('Error clearing abbreviations. Please try again.');
+      console.error('Erro ao limpar abreviações:', error);
+      alert('Erro ao limpar abreviações. Por favor, tente novamente.');
     }
   }
 }
