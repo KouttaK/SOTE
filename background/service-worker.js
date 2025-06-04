@@ -1,3 +1,4 @@
+// SOTE-main/background/service-worker.js
 // Initialize the database when the extension is installed
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -72,19 +73,12 @@ self.addEventListener('install', (event) => {
         
         await Promise.all(addPromises);
 
-        // Não é necessário transaction.done explicitamente aqui se as promessas acima cobrem os sucessos/erros
-        // No entanto, para garantir que a transação finalize antes de prosseguir, podemos aguardá-la.
-        // Para isso, a transação deve ser gerenciada de forma um pouco diferente ou podemos confiar no auto-commit.
-        // Por simplicidade e dado que Promise.all aguarda as operações, o auto-commit geralmente funciona.
-        // Se você encontrar problemas de transação inativa, envolva todo o loop de promessas
-        // dentro de uma única promessa de transação.
-
         console.log('Database initialization with default abbreviations checked/completed.');
 
         chrome.runtime.sendMessage({ type: 'INITIAL_SEED_COMPLETE' }).catch(e => console.warn("Could not send INITIAL_SEED_COMPLETE message:", e));
 
       } catch (error) {
-        console.error('Error initializing default abbreviations during install event:', error); // Esta é a linha 66 do seu erro original
+        console.error('Error initializing default abbreviations during install event:', error);
         throw error; 
       }
     })()
@@ -101,30 +95,70 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         const abbreviationsObjectStore = transaction.objectStore('abbreviations');
         const rulesObjectStore = transaction.objectStore('expansionRules');
         
+        console.log('[SOTE Service Worker DEBUG] Iniciando GET_ABBREVIATIONS');
+
         const [abbreviationsArray, rulesArray] = await Promise.all([
           new Promise((resolve, reject) => {
             const request = abbreviationsObjectStore.getAll();
             request.onsuccess = () => resolve(request.result);
-            request.onerror = () => reject(request.error);
+            request.onerror = (e) => { // Modificado para logar o erro corretamente
+              console.error('[SOTE Service Worker DEBUG] Erro ao buscar abreviações:', e.target.error);
+              reject(request.error);
+            }
           }),
           new Promise((resolve, reject) => {
             const request = rulesObjectStore.getAll();
             request.onsuccess = () => resolve(request.result);
-            request.onerror = () => reject(request.error);
+            request.onerror = (e) => { // Modificado para logar o erro corretamente
+              console.error('[SOTE Service Worker DEBUG] Erro ao buscar regras:', e.target.error);
+              reject(request.error);
+            }
           })
         ]);
+
+        // Logs para depuração
+        try {
+            console.log('[SOTE Service Worker DEBUG] Abreviações do DB:', abbreviationsArray ? JSON.parse(JSON.stringify(abbreviationsArray)) : 'Nenhuma');
+            console.log('[SOTE Service Worker DEBUG] Regras do DB:', rulesArray ? JSON.parse(JSON.stringify(rulesArray)) : 'Nenhuma');
+        } catch (e) {
+            console.warn('[SOTE Service Worker DEBUG] Erro ao fazer stringify dos dados do DB para log:', e);
+            console.log('[SOTE Service Worker DEBUG] Abreviações do DB (raw):', abbreviationsArray);
+            console.log('[SOTE Service Worker DEBUG] Regras do DB (raw):', rulesArray);
+        }
+
 
         if (abbreviationsArray) {
           abbreviationsArray.forEach(abbr => {
             abbr.rules = rulesArray.filter(rule => rule.abbreviationId === abbr.abbreviation);
+            
+            // Log para cada abreviação
+            console.log(`[SOTE Service Worker DEBUG] Para abbr '${abbr.abbreviation}':`, 
+                        `abbr.rules atribuído como tipo: ${typeof abbr.rules},`, 
+                        `é array? ${Array.isArray(abbr.rules)},`, 
+                        `tamanho: ${Array.isArray(abbr.rules) ? abbr.rules.length : 'N/A'}`);
+            if (abbr.abbreviation === 'btw') { // Log específico para 'btw'
+                try {
+                    console.log(`[SOTE Service Worker DEBUG] Detalhe de abbr.rules para 'btw':`, JSON.parse(JSON.stringify(abbr.rules)));
+                } catch (e) {
+                    console.warn('[SOTE Service Worker DEBUG] Erro ao fazer stringify de abbr.rules para btw:', e);
+                    console.log(`[SOTE Service Worker DEBUG] Detalhe de abbr.rules para 'btw' (raw):`, abbr.rules);
+                }
+            }
           });
+          try {
+            console.log('[SOTE Service Worker DEBUG] abbreviationsArray FINAL para enviar:', JSON.parse(JSON.stringify(abbreviationsArray)));
+          } catch (e) {
+            console.warn('[SOTE Service Worker DEBUG] Erro ao fazer stringify do abbreviationsArray final:', e);
+            console.log('[SOTE Service Worker DEBUG] abbreviationsArray FINAL para enviar (raw):', abbreviationsArray);
+          }
           sendResponse({ abbreviations: abbreviationsArray });
         } else {
+          console.log('[SOTE Service Worker DEBUG] Nenhuma abreviação encontrada no DB, enviando array vazio.');
           sendResponse({ abbreviations: [] });
         }
       } catch (error) {
-        console.error('Error fetching abbreviations:', error); 
-        sendResponse({ error: 'Failed to retrieve abbreviations.' });
+        console.error('[SOTE Service Worker DEBUG] Erro em GET_ABBREVIATIONS:', error); 
+        sendResponse({ error: 'Falha ao recuperar abreviações.' });
       }
     })();
     return true; 
@@ -134,14 +168,20 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
 // Broadcast changes to all tabs
 chrome.storage.onChanged.addListener((changes, namespace) => {
-  if (namespace === 'sync' && changes.abbreviations) { // Verifique se 'abbreviations' é o que realmente muda
+  if (namespace === 'sync' && changes.abbreviations) { 
     chrome.tabs.query({}, tabs => {
       tabs.forEach(tab => {
-        chrome.tabs.sendMessage(tab.id, { 
-          type: 'ABBREVIATIONS_UPDATED' 
-        }).catch(() => {
-          // Ignore errors for tabs that can't receive messages
-        });
+        if (tab.id) { // Adicionada verificação se tab.id existe
+            chrome.tabs.sendMessage(tab.id, { 
+            type: 'ABBREVIATIONS_UPDATED' 
+            }).catch((error) => { // Modificado para capturar o erro específico
+            // console.warn(`Ignorando erro ao enviar mensagem para tab ${tab.id}: ${error.message}`);
+            // Opcional: Logar apenas se não for o erro comum de "receiving end does not exist"
+            if (error.message && !error.message.toLowerCase().includes('receiving end does not exist')) {
+                console.warn(`Erro ao enviar mensagem ABBREVIATIONS_UPDATED para tab ${tab.id}:`, error);
+            }
+            });
+        }
       });
     });
   }
@@ -157,8 +197,9 @@ function openDatabase() {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, DB_VERSION);
     
-    request.onerror = () => {
-      reject(new Error('Failed to open database'));
+    request.onerror = (event) => { // Adicionado event para acesso ao error
+      console.error('Falha ao abrir banco de dados', event.target.error);
+      reject(new Error('Falha ao abrir banco de dados'));
     };
     
     request.onsuccess = (event) => {

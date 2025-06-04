@@ -1,4 +1,3 @@
-
 // DOM Elements
 // Header
 const enabledToggle = document.getElementById('enabled-toggle');
@@ -60,6 +59,8 @@ const dayCheckboxes = daysSection.querySelectorAll('input[type="checkbox"]');
 const timeSection = document.getElementById('time-section');
 const startHourInput = document.getElementById('start-hour');
 const endHourInput = document.getElementById('end-hour');
+const startMinuteInput = document.getElementById('start-minute'); // ADDED
+const endMinuteInput = document.getElementById('end-minute');     // ADDED
 const domainSection = document.getElementById('domain-section');
 const domainsTextarea = document.getElementById('domains');
 const ruleExpansionInput = document.getElementById('rule-expansion');
@@ -707,7 +708,11 @@ function loadAndDisplayRules(abbreviationId) {
         details = `Dias: ${rule.days ? rule.days.map(d => daysMap[d]).join(', ') : 'N/A'}`;
         break;
       case 'timeRange':
-        details = `Horário: ${String(rule.startHour).padStart(2, '0')}:00 - ${String(rule.endHour).padStart(2, '0')}:59`;
+        const startHrStr = String(rule.startHour).padStart(2, '0');
+        const startMinStr = String(rule.startMinute !== undefined ? rule.startMinute : '0').padStart(2, '0');
+        const endHrStr = String(rule.endHour).padStart(2, '0');
+        const endMinStr = String(rule.endMinute !== undefined ? rule.endMinute : '0').padStart(2, '0');
+        details = `Horário: ${startHrStr}:${startMinStr} - ${endHrStr}:${endMinStr}`;
         break;
       case 'domain':
         details = `Domínios: ${rule.domains ? rule.domains.join(', ') : 'N/A'}`;
@@ -771,7 +776,12 @@ function loadAndDisplayRules(abbreviationId) {
 function getDetailForSubType(subCond) {
     switch(subCond.conditionType) {
         case 'dayOfWeek': return `: ${subCond.days ? subCond.days.join(',') : ''}`;
-        case 'timeRange': return `: ${subCond.startHour}-${subCond.endHour}`;
+        case 'timeRange':
+            const subStartHrStr = String(subCond.startHour).padStart(2, '0');
+            const subStartMinStr = String(subCond.startMinute !== undefined ? subCond.startMinute : '0').padStart(2, '0');
+            const subEndHrStr = String(subCond.endHour).padStart(2, '0');
+            const subEndMinStr = String(subCond.endMinute !== undefined ? subCond.endMinute : '0').padStart(2, '0');
+            return `: ${subStartHrStr}:${subStartMinStr}-${subEndHrStr}:${subEndMinStr}`;
         case 'domain': return `: ${subCond.domains ? subCond.domains.join(', ') : ''}`;
         case 'specialDate': return `: ${subCond.day}/${subCond.month}`;
         default: return '';
@@ -800,6 +810,8 @@ function resetRuleForm() {
   domainsTextarea.value = '';
   startHourInput.value = '';
   endHourInput.value = '';
+  startMinuteInput.value = ''; // ADDED
+  endMinuteInput.value = '';   // ADDED
   specialMonthInput.value = ''; // Resetar novo campo
   specialDayInput.value = '';   // Resetar novo campo
   rulePriorityInput.value = 0;
@@ -871,12 +883,19 @@ async function handleSaveRule() {
     case 'timeRange':
       const startHour = parseInt(startHourInput.value, 10);
       const endHour = parseInt(endHourInput.value, 10);
-      if (isNaN(startHour) || isNaN(endHour) || startHour < 0 || startHour > 23 || endHour < 0 || endHour > 23 || startHour > endHour) {
-        alert('Por favor, insira um intervalo de horário válido (0-23 e início <= fim).');
+      const startMinute = parseInt(startMinuteInput.value, 10); // ADDED
+      const endMinute = parseInt(endMinuteInput.value, 10);     // ADDED
+
+      if (isNaN(startHour) || isNaN(startMinute) || isNaN(endHour) || isNaN(endMinute) ||
+          startHour < 0 || startHour > 23 || startMinute < 0 || startMinute > 59 ||
+          endHour < 0 || endHour > 23 || endMinute < 0 || endMinute > 59) {
+        alert('Por favor, insira um horário HH:MM válido (Horas 0-23, Minutos 0-59).');
         return;
       }
       ruleData.startHour = startHour;
       ruleData.endHour = endHour;
+      ruleData.startMinute = startMinute; // ADDED
+      ruleData.endMinute = endMinute;     // ADDED
       break;
     case 'domain':
       ruleData.domains = domainsTextarea.value.split('\n').map(d => d.trim()).filter(d => d.length > 0);
@@ -918,11 +937,17 @@ async function handleSaveRule() {
           case 'timeRange':
             const subStartHour = parseInt(subFieldsContainer.querySelector('.sub-start-hour').value, 10);
             const subEndHour = parseInt(subFieldsContainer.querySelector('.sub-end-hour').value, 10);
-            if (isNaN(subStartHour) || isNaN(subEndHour) || subStartHour < 0 || subStartHour > 23 || subEndHour < 0 || subEndHour > 23 || subStartHour > subEndHour) {
-              alert('Sub-condição de horário inválida.'); return;
+            const subStartMinute = parseInt(subFieldsContainer.querySelector('.sub-start-minute').value, 10); // ADDED
+            const subEndMinute = parseInt(subFieldsContainer.querySelector('.sub-end-minute').value, 10);   // ADDED
+            if (isNaN(subStartHour) || isNaN(subStartMinute) || isNaN(subEndHour) || isNaN(subEndMinute) ||
+                subStartHour < 0 || subStartHour > 23 || subStartMinute < 0 || subStartMinute > 59 ||
+                subEndHour < 0 || subEndHour > 23 || subEndMinute < 0 || subEndMinute > 59) {
+              alert('Sub-condição de horário HH:MM inválida.'); return;
             }
             subCondData.startHour = subStartHour;
             subCondData.endHour = subEndHour;
+            subCondData.startMinute = subStartMinute; // ADDED
+            subCondData.endMinute = subEndMinute;     // ADDED
             break;
           case 'domain':
             subCondData.domains = subFieldsContainer.querySelector('.sub-domains').value.split('\n').map(d => d.trim()).filter(d => d.length > 0);
@@ -989,6 +1014,8 @@ function handleEditRule(rule) {
     case 'timeRange':
       startHourInput.value = rule.startHour !== undefined ? rule.startHour : '';
       endHourInput.value = rule.endHour !== undefined ? rule.endHour : '';
+      startMinuteInput.value = rule.startMinute !== undefined ? rule.startMinute : ''; // ADDED
+      endMinuteInput.value = rule.endMinute !== undefined ? rule.endMinute : '';     // ADDED
       break;
     case 'domain':
       domainsTextarea.value = rule.domains ? rule.domains.join('\n') : '';
@@ -1075,11 +1102,15 @@ function renderSubConditionFields(type, container, data = null) {
       break;
     case 'timeRange':
       content = `
-        <label>Horário:</label>
+        <label>Horário (HH:MM):</label>
         <div class="time-range">
-          <input type="number" class="sub-start-hour" min="0" max="23" placeholder="Início" value="${data && data.startHour !== undefined ? data.startHour : ''}">
-          <span>até</span>
-          <input type="number" class="sub-end-hour" min="0" max="23" placeholder="Fim" value="${data && data.endHour !== undefined ? data.endHour : ''}">
+          <input type="number" class="sub-start-hour" min="0" max="23" placeholder="HH" style="width: 60px;" value="${data && data.startHour !== undefined ? data.startHour : ''}">
+          <span>:</span>
+          <input type="number" class="sub-start-minute" min="0" max="59" placeholder="MM" style="width: 60px;" value="${data && data.startMinute !== undefined ? data.startMinute : ''}">
+          <span>&nbsp;até&nbsp;</span>
+          <input type="number" class="sub-end-hour" min="0" max="23" placeholder="HH" style="width: 60px;" value="${data && data.endHour !== undefined ? data.endHour : ''}">
+          <span>:</span>
+          <input type="number" class="sub-end-minute" min="0" max="59" placeholder="MM" style="width: 60px;" value="${data && data.endMinute !== undefined ? data.endMinute : ''}">
         </div>`;
       break;
     case 'domain':

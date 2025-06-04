@@ -1,46 +1,77 @@
-// Utility functions for text expansion
+// SOTE-main/utils/expansion.js
 (function(window) {
   'use strict';
-  
-   function evaluateRule(rule, now = new Date()) { // Added 'now' parameter for testability
-    // const now = new Date(); // Original placement
-    const currentDay = now.getDay(); // Sunday = 0, Monday = 1, ...
+  console.log('[SOTE DEBUG] utils/expansion.js SCRIPT CARREGADO em:', new Date().toLocaleTimeString()); 
+
+  function evaluateRule(rule, now = new Date()) { 
+    // Log inicial da função evaluateRule
+    console.log('[SOTE DEBUG] evaluateRule INICIADA para regra - ID:', rule.id || '(sem id)', 'Tipo:', rule.type, 'Prioridade:', rule.priority);
+    
+    const currentDay = now.getDay(); 
     const currentHour = now.getHours();
-    const currentDate = now.getDate(); // Day of the month (1-31)
-    const currentMonth = now.getMonth() + 1; // Month (1-12)
+    const currentMinute = now.getMinutes(); 
+    const currentDate = now.getDate(); 
+    const currentMonth = now.getMonth() + 1; 
 
     let conditionMet = false;
+
+    // Log dos dados da regra e do tempo atual para avaliação
+    // console.log('[SOTE DEBUG] Avaliando Regra (dados completos):', JSON.parse(JSON.stringify(rule)), 'Hora Atual:', now.toLocaleString(), 'Dia da Semana Atual (0=Dom):', currentDay);
+
     switch (rule.type) {
       case 'dayOfWeek':
-        conditionMet = rule.days && rule.days.includes(currentDay);
+        conditionMet = rule.days && Array.isArray(rule.days) && rule.days.includes(currentDay);
+        console.log('[SOTE DEBUG] DayOfWeek - Condição Atendida:', conditionMet, '| Dias da Regra:', rule.days, '| Dia Atual:', currentDay);
         break;
         
       case 'timeRange':
-        conditionMet = rule.startHour !== undefined && rule.endHour !== undefined &&
-                       currentHour >= rule.startHour && currentHour <= rule.endHour;
+        console.log('[SOTE DEBUG] TimeRange - Dados da Regra: StartH:', rule.startHour, 'StartM:', rule.startMinute, 'EndH:', rule.endHour, 'EndM:', rule.endMinute, '| Hora Atual:', currentHour + ':' + currentMinute);
+
+        if (rule.startHour !== undefined && rule.startMinute !== undefined &&
+            rule.endHour !== undefined && rule.endMinute !== undefined) {
+          
+          const ruleStartTotalMinutes = Number(rule.startHour) * 60 + Number(rule.startMinute);
+          const ruleEndTotalMinutes = Number(rule.endHour) * 60 + Number(rule.endMinute);
+          const currentTimeTotalMinutes = currentHour * 60 + currentMinute;
+
+          console.log('[SOTE DEBUG] TimeRange - Cálculos: StartTotalM:', ruleStartTotalMinutes, 'EndTotalM:', ruleEndTotalMinutes, 'CurrentTotalM:', currentTimeTotalMinutes);
+
+          if (ruleStartTotalMinutes <= ruleEndTotalMinutes) { // Não atravessa meia-noite
+            conditionMet = currentTimeTotalMinutes >= ruleStartTotalMinutes && 
+                           currentTimeTotalMinutes <= ruleEndTotalMinutes;
+          } else { // Atravessa meia-noite (ex: 22:00 - 02:00)
+            conditionMet = currentTimeTotalMinutes >= ruleStartTotalMinutes || 
+                           currentTimeTotalMinutes <= ruleEndTotalMinutes;
+          }
+        } else {
+          conditionMet = false; 
+          console.warn('[SOTE DEBUG] TimeRange - Regra faltando propriedades de hora/minuto:', rule);
+        }
+        console.log('[SOTE DEBUG] TimeRange - Condição Atendida para regra ID ' + (rule.id || 'N/A') + ':', conditionMet);
         break;
         
       case 'domain':
         const currentDomain = window.location.hostname;
-        conditionMet = rule.domains && rule.domains.some(domain => currentDomain.includes(domain));
+        conditionMet = rule.domains && Array.isArray(rule.domains) && rule.domains.some(domain => currentDomain.includes(domain));
+        console.log('[SOTE DEBUG] Domain - Condição Atendida:', conditionMet, '| Domínios da Regra:', rule.domains, '| Domínio Atual:', currentDomain);
         break;
 
-      case 'specialDate': // NOVA REGRA
+      case 'specialDate': 
         conditionMet = rule.month !== undefined && rule.day !== undefined &&
                        currentMonth === parseInt(rule.month, 10) && 
                        currentDate === parseInt(rule.day, 10);
+        console.log('[SOTE DEBUG] SpecialDate - Condição Atendida:', conditionMet, '| Data da Regra (M/D):', rule.month + '/' + rule.day, '| Data Atual (M/D):', currentMonth + '/' + currentDate);
         break;
         
-      case 'combined': // LÓGICA ATUALIZADA PARA REGRAS COMBINADAS
-        if (!rule.subConditions || rule.subConditions.length === 0) {
-          conditionMet = true; // Or false, depending on desired behavior for empty combined rule
+      case 'combined': 
+        console.log('[SOTE DEBUG] Combined - Dados da Regra:', rule.logicalOperator, 'Subcondições:', rule.subConditions ? rule.subConditions.length : 0);
+        if (!rule.subConditions || !Array.isArray(rule.subConditions) || rule.subConditions.length === 0) {
+          conditionMet = true; // Ou false, dependendo do comportamento desejado para regra combinada vazia
+          console.log('[SOTE DEBUG] Combined - Sem subcondições ou subcondições inválidas, resultado:', conditionMet);
           break;
         }
         if (rule.logicalOperator === 'AND') {
           conditionMet = rule.subConditions.every(subRule => {
-            // Recursively evaluate the sub-rule
-            // Each subRule here is an object like: { conditionType: 'dayOfWeek', days: [1], negated: false, ...other props }
-            // We need to transform it slightly to pass to evaluateRule or adapt evaluateRule
             const subConditionResult = evaluateRule({ type: subRule.conditionType, ...subRule }, now);
             return subRule.negated ? !subConditionResult : subConditionResult;
           });
@@ -50,31 +81,70 @@
             return subRule.negated ? !subConditionResult : subConditionResult;
           });
         } else {
-          conditionMet = true; // Default if no valid operator, or could be false
+          conditionMet = true; // Comportamento padrão se operador lógico for inválido
         }
+        console.log('[SOTE DEBUG] Combined - Condição Atendida:', conditionMet);
         break;
         
       default:
-        conditionMet = true; // If rule type is unknown or not condition-based
+        console.warn('[SOTE DEBUG] Tipo de regra desconhecido:', rule.type);
+        conditionMet = true; // Ou false, se tipos desconhecidos não devem ativar expansão
     }
+    console.log('[SOTE DEBUG] evaluateRule FINALIZADA para regra ID:', rule.id || '(sem id)', 'Tipo:', rule.type, 'Resultado:', conditionMet);
     return conditionMet;
   }
 
-  function getMatchingExpansion(abbreviation, rules) {
-    if (!rules || rules.length === 0) {
-      return abbreviation.expansion;
+  function getMatchingExpansion(abbreviationObject, rulesArgument) {
+    console.log('[SOTE DEBUG] getMatchingExpansion INICIADA para:', 
+      abbreviationObject.abbreviation, 
+      '| Expansão Padrão:', abbreviationObject.expansion, 
+      '| Tipo de rulesArgument:', typeof rulesArgument, 
+      '| É rulesArgument um array?', Array.isArray(rulesArgument));
+    
+    if (rulesArgument && Array.isArray(rulesArgument)) {
+        // Usar JSON.stringify seguro para evitar erros com estruturas complexas ou circulares se houver
+        try {
+            console.log('[SOTE DEBUG] Conteúdo de rulesArgument:', JSON.stringify(rulesArgument));
+        } catch (e) {
+            console.warn('[SOTE DEBUG] Não foi possível fazer stringify de rulesArgument:', rulesArgument, e);
+        }
     }
 
-    const now = new Date(); // Get current time once for all rule evaluations
-    const sortedRules = [...rules].sort((a, b) => (b.priority || 0) - (a.priority || 0));
+    if (!rulesArgument || !Array.isArray(rulesArgument) || rulesArgument.length === 0) { 
+      console.log('[SOTE DEBUG] getMatchingExpansion: rulesArgument inválido ou vazio. Retornando expansão padrão.');
+      return abbreviationObject.expansion; 
+    }
 
-    const matchingRule = sortedRules.find(rule => evaluateRule(rule, now));
+    const now = new Date();
+    const sortedRules = [...rulesArgument].sort((a, b) => (b.priority || 0) - (a.priority || 0));
     
-    return matchingRule ? matchingRule.expansion : abbreviation.expansion;
+    try {
+        console.log('[SOTE DEBUG] getMatchingExpansion: Regras ordenadas para matching:', JSON.stringify(sortedRules));
+    } catch (e) {
+        console.warn('[SOTE DEBUG] Não foi possível fazer stringify de sortedRules:', sortedRules, e);
+    }
+
+
+    const matchingRule = sortedRules.find(rule => {
+      if (!rule || typeof rule !== 'object') {
+        console.warn('[SOTE DEBUG] getMatchingExpansion: Item inválido em sortedRules:', rule);
+        return false;
+      }
+      console.log('[SOTE DEBUG] getMatchingExpansion: Avaliando regra ID:', rule.id || "ID Desconhecido", "Tipo:", rule.type, "Prioridade:", rule.priority);
+      return evaluateRule(rule, now);
+    });
+    
+    if (matchingRule) {
+      console.log('[SOTE DEBUG] getMatchingExpansion: Regra correspondente ENCONTRADA. ID:', matchingRule.id, 'Expansão:', matchingRule.expansion);
+      return matchingRule.expansion;
+    } else {
+      console.log('[SOTE DEBUG] getMatchingExpansion: Nenhuma regra correspondente encontrada. Retornando expansão padrão para', abbreviationObject.abbreviation);
+      return abbreviationObject.expansion;
+    }
   }
 
-
   function matchAbbreviation(text, abbreviation, caseSensitive) {
+    // console.log('[SOTE DEBUG] matchAbbreviation:', text, abbreviation, caseSensitive);
     if (!text || !abbreviation) return false;
     
     if (caseSensitive) {
@@ -84,7 +154,8 @@
     }
   }
 
-  function expandAbbreviation(element, abbreviation, expansion, rules) {
+  function expandAbbreviation(element, abbreviationText, defaultExpansionText, rulesArray) {
+    // console.log('[SOTE DEBUG] expandAbbreviation (input/textarea) para:', abbreviationText);
     const value = element.value;
     const cursorPos = element.selectionStart;
     
@@ -95,11 +166,11 @@
     
     const word = value.substring(wordStart, cursorPos);
     
-    if (matchAbbreviation(word, abbreviation, false)) {
-      const contextualExpansion = getMatchingExpansion({ abbreviation, expansion }, rules);
+    if (matchAbbreviation(word, abbreviationText, false)) { 
+      const contextualExpansion = getMatchingExpansion({ abbreviation: abbreviationText, expansion: defaultExpansionText, rules: rulesArray }, rulesArray);
       
       element._lastExpansion = {
-        abbreviation,
+        abbreviation: abbreviationText,
         expansion: contextualExpansion,
         position: { start: wordStart, end: cursorPos }
       };
@@ -121,11 +192,14 @@
     return false;
   }
 
-  function expandAbbreviationInContentEditable(abbreviation, expansion, rules) {
+  function expandAbbreviationInContentEditable(abbreviationText, defaultExpansionText, rulesArray) {
+    // console.log('[SOTE DEBUG] expandAbbreviationInContentEditable para:', abbreviationText);
     const selection = window.getSelection();
     if (!selection.rangeCount) return false;
     
     const range = selection.getRangeAt(0);
+    if (!range.startContainer.textContent) return false; 
+
     const text = range.startContainer.textContent;
     const cursorPos = range.startOffset;
     
@@ -136,34 +210,72 @@
     
     const word = text.substring(wordStart, cursorPos);
     
-    if (matchAbbreviation(word, abbreviation, false)) {
-      const contextualExpansion = getMatchingExpansion({ abbreviation, expansion }, rules);
+    if (matchAbbreviation(word, abbreviationText, false)) { 
+        const contextualExpansion = getMatchingExpansion({ abbreviation: abbreviationText, expansion: defaultExpansionText, rules: rulesArray }, rulesArray); 
       
       const wordRange = document.createRange();
       wordRange.setStart(range.startContainer, wordStart);
       wordRange.setEnd(range.startContainer, cursorPos);
       
-      range.startContainer._lastExpansion = {
-        abbreviation,
-        expansion: contextualExpansion,
-        range: wordRange.cloneRange()
+      let editableElementHost = range.startContainer;
+      while(editableElementHost && editableElementHost.nodeType !== Node.ELEMENT_NODE) {
+          editableElementHost = editableElementHost.parentNode;
+      }
+      if (!editableElementHost) editableElementHost = document.body; 
+
+      editableElementHost._lastExpansion = { 
+          abbreviation: abbreviationText,
+          expansion: contextualExpansion,
+          savedRangePath: { 
+              startContainerPath: getNodePath(range.startContainer),
+              startOffset: wordStart,
+              endContainerPath: getNodePath(range.startContainer),
+              endOffset: cursorPos
+          },
+          rawRange: range.cloneRange() 
       };
       
       wordRange.deleteContents();
       const textNode = document.createTextNode(contextualExpansion);
       wordRange.insertNode(textNode);
       
+      selection.removeAllRanges();
       const newRange = document.createRange();
       newRange.setStartAfter(textNode);
-      newRange.setEndAfter(textNode);
-      selection.removeAllRanges();
+      newRange.collapse(true);
       selection.addRange(newRange);
       
+      let editableElement = range.startContainer;
+      while(editableElement && !editableElement.isContentEditable) {
+          editableElement = editableElement.parentNode;
+      }
+      if(editableElement && editableElement.isContentEditable) {
+          editableElement.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
+      }
+
       return true;
     }
     
     return false;
   }
+  
+  function getNodePath(node) {
+      const path = [];
+      while (node && node.parentNode) {
+          let index = 0;
+          let sibling = node.previousSibling;
+          while (sibling) {
+              if (sibling.nodeType === node.nodeType && sibling.nodeName === node.nodeName) {
+                  index++;
+              }
+              sibling = sibling.previousSibling;
+          }
+          path.unshift({ name: node.nodeName, index });
+          node = node.parentNode;
+      }
+      return path;
+  }
+
 
   function undoExpansion(element) {
     if (!element._lastExpansion) return false;
@@ -172,61 +284,64 @@
     const { start } = position;
     const expansionLength = element._lastExpansion.expansion.length;
     
-    // Replace the expansion with the original abbreviation
     const newValue = element.value.substring(0, start) + 
                      abbreviation + 
                      element.value.substring(start + expansionLength);
     
     element.value = newValue;
     
-    // Move the cursor to the end of the abbreviation
     const newCursorPos = start + abbreviation.length;
     element.setSelectionRange(newCursorPos, newCursorPos);
     
-    // Trigger input event
     element.dispatchEvent(new Event('input', { bubbles: true }));
     
-    // Clear the last expansion
     element._lastExpansion = null;
     
     return true;
   }
 
-  function undoExpansionInContentEditable(element) {
-    if (!element._lastExpansion) return false;
+  function undoExpansionInContentEditable(element) { 
+    if (!element || !element._lastExpansion) return false;
     
-    const { abbreviation, range } = element._lastExpansion;
+    const { abbreviation, rawRange } = element._lastExpansion; 
     
-    // Create a range from the original position
-    const currentRange = range.cloneRange();
-    
-    // Replace the expansion with the original abbreviation
-    currentRange.deleteContents();
-    const textNode = document.createTextNode(abbreviation);
-    currentRange.insertNode(textNode);
-    
-    // Move the cursor to the end of the abbreviation
     const selection = window.getSelection();
-    const newRange = document.createRange();
-    newRange.setStartAfter(textNode);
-    newRange.collapse(true);
-    selection.removeAllRanges();
-    selection.addRange(newRange);
+    if (!selection || !rawRange) return false;
+
+    try {
+        selection.removeAllRanges();
+        selection.addRange(rawRange); 
+
+        rawRange.deleteContents(); 
+        const textNode = document.createTextNode(abbreviation);
+        rawRange.insertNode(textNode);
+        
+        selection.removeAllRanges();
+        const newRange = document.createRange();
+        newRange.setStartAfter(textNode);
+        newRange.collapse(true);
+        selection.addRange(newRange);
+        
+        element.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
+    } catch (e) {
+        console.error("[SOTE DEBUG] Erro durante undoExpansionInContentEditable:", e);
+        // Restaurar _lastExpansion se o undo falhar pode ser uma opção, ou limpá-lo de qualquer maneira.
+        // Por simplicidade, vamos limpar.
+        element._lastExpansion = null;
+        return false;
+    }
     
-    // Clear the last expansion
     element._lastExpansion = null;
-    
     return true;
   }
 
-  // Export functions to global scope
   window.TextExpander = {
     matchAbbreviation,
     expandAbbreviation,
     expandAbbreviationInContentEditable,
     undoExpansion,
     undoExpansionInContentEditable,
-    evaluateRule, // Make sure this is available if called directly elsewhere
+    evaluateRule, 
     getMatchingExpansion
   };
 })(window);

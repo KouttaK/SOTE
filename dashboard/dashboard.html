@@ -301,11 +301,15 @@
           </div>
           
           <div id="time-section" class="form-group hidden">
-            <label>Horário</label>
+            <label>Horário (HH:MM)</label>
             <div class="time-range">
-              <input type="number" id="start-hour" min="0" max="23" placeholder="Início (0-23)">
-              <span>até</span>
-              <input type="number" id="end-hour" min="0" max="23" placeholder="Fim (0-23)">
+              <input type="number" id="start-hour" min="0" max="23" placeholder="HH" style="width: 60px;">
+              <span>:</span>
+              <input type="number" id="start-minute" min="0" max="59" placeholder="MM" style="width: 60px;">
+              <span>&nbsp;até&nbsp;</span>
+              <input type="number" id="end-hour" min="0" max="23" placeholder="HH" style="width: 60px;">
+              <span>:</span>
+              <input type="number" id="end-minute" min="0" max="59" placeholder="MM" style="width: 60px;">
             </div>
           </div>
           
