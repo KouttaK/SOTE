@@ -48,7 +48,7 @@ body {
 .popup-container {
   display: flex;
   flex-direction: column;
-  height: 480px;
+  height: 480px; /* Pode precisar ajustar se o formulário ficar maior */
 }
 
 .popup-header {
@@ -177,6 +177,7 @@ input:checked + .toggle-slider:before {
 .abbreviation-details {
   display: flex;
   flex-direction: column;
+  overflow: hidden; /* Para evitar que o texto longo quebre o layout */
 }
 
 .abbreviation-text {
@@ -189,6 +190,10 @@ input:checked + .toggle-slider:before {
   font-size: 0.75rem;
   color: var(--gray-600);
   margin-top: var(--spacing-1);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 180px; /* Ajustar conforme necessário */
 }
 
 .category-badge {
@@ -204,6 +209,7 @@ input:checked + .toggle-slider:before {
 .item-actions {
   display: flex;
   gap: var(--spacing-1);
+  flex-shrink: 0; /* Para evitar que os botões sejam espremidos */
 }
 
 .edit-btn, .delete-btn {
@@ -226,16 +232,7 @@ input:checked + .toggle-slider:before {
   background-color: var(--gray-100);
 }
 
-.loading {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 100px;
-  color: var(--gray-500);
-  font-size: 0.875rem;
-}
-
-.empty-state {
+.loading, .empty-state {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -243,6 +240,7 @@ input:checked + .toggle-slider:before {
   padding: var(--spacing-6);
   color: var(--gray-500);
   text-align: center;
+  min-height: 100px; /* Para dar algum espaço quando vazio */
 }
 
 .empty-state p {
@@ -297,6 +295,7 @@ input:checked + .toggle-slider:before {
   z-index: 10;
   display: flex;
   flex-direction: column;
+  overflow-y: auto; /* Para caso o formulário fique maior que a tela */
 }
 
 .add-form h2 {
@@ -317,7 +316,9 @@ input:checked + .toggle-slider:before {
   color: var(--gray-700);
 }
 
-.form-group input, .form-group select {
+.form-group input[type="text"], 
+.form-group select,
+.form-group textarea {
   width: 100%;
   padding: var(--spacing-2) var(--spacing-3);
   border: 1px solid var(--gray-300);
@@ -325,9 +326,17 @@ input:checked + .toggle-slider:before {
   font-size: 0.875rem;
   outline: none;
   transition: border-color 0.2s, box-shadow 0.2s;
+  font-family: inherit; /* Garante que a textarea use a mesma fonte */
 }
 
-.form-group input:focus, .form-group select:focus {
+.form-group textarea {
+  resize: vertical; /* Permite redimensionamento vertical */
+  min-height: 60px; /* Altura mínima */
+}
+
+.form-group input[type="text"]:focus, 
+.form-group select:focus,
+.form-group textarea:focus {
   border-color: var(--primary);
   box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3);
 }
@@ -340,17 +349,20 @@ input:checked + .toggle-slider:before {
 
 .form-group.checkbox label {
   margin-bottom: 0;
+  font-weight: normal; /* Labels de checkbox geralmente são normais */
 }
 
-.form-group.checkbox input {
+.form-group.checkbox input[type="checkbox"] {
   width: auto;
+  margin-right: var(--spacing-1);
 }
 
 .form-actions {
   display: flex;
   justify-content: flex-end;
   gap: var(--spacing-2);
-  margin-top: auto;
+  margin-top: auto; /* Empurra para o final se o formulário for flex column */
+  padding-top: var(--spacing-4); /* Espaço antes dos botões */
 }
 
 .cancel-btn, .save-btn {
@@ -381,8 +393,30 @@ input:checked + .toggle-slider:before {
   background-color: var(--primary-dark);
 }
 
+.action-buttons-container {
+  margin-top: var(--spacing-1);
+  display: flex;
+  gap: var(--spacing-2);
+}
+
+.btn-insert-action {
+  background-color: var(--gray-100);
+  color: var(--gray-700);
+  border: 1px solid var(--gray-300);
+  padding: var(--spacing-1) var(--spacing-2);
+  font-size: 0.75rem;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.btn-insert-action:hover {
+  background-color: var(--gray-200);
+}
+
+
 .hidden {
-  display: none;
+  display: none !important; /* Usar !important para garantir que sobreponha se necessário */
 }
 
 /* Animation */

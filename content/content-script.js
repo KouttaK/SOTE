@@ -5,61 +5,66 @@
 
   let abbreviationsCache = [];
   let isEnabled = true;
-
-  const TRIGGER_KEYS = {
-    Space: ' ',
-    Tab: '\t',
-    Enter: '\n'
+  let settings = { // Default settings
+    triggerSpace: true,
+    triggerTab: true,
+    triggerEnter: true,
+    enableUndo: true
   };
+
+
+  const TRIGGER_KEYS_MAP = { // Mapeamento de códigos de tecla para nomes de gatilho
+    Space: 'triggerSpace',
+    Tab: 'triggerTab',
+    Enter: 'triggerEnter'
+  };
+
+  // Character to insert for trigger keys is handled by the browser / OS default behavior or by $cursor$ action
+  // const TRIGGER_CHARS = {
+  //     triggerSpace: ' ',
+  //     triggerTab: '\t',
+  //     triggerEnter: '\n'
+  // };
+
+
+  function loadSettings() {
+    chrome.storage.sync.get(['triggerSpace', 'triggerTab', 'triggerEnter', 'enableUndo'], (result) => {
+      settings.triggerSpace = result.triggerSpace !== false;
+      settings.triggerTab = result.triggerTab !== false; 
+      settings.triggerEnter = result.triggerEnter !== false;
+      settings.enableUndo = result.enableUndo !== false;
+      // console.log('[SOTE DEBUG content-script] Configurações carregadas:', settings);
+    });
+  }
+
 
   function fetchAbbreviations() {
     if (!chrome.runtime || !chrome.runtime.sendMessage) {
       console.error("SOTE content-script: chrome.runtime.sendMessage não está disponível.");
-      abbreviationsCache = []; // Garante que o cache seja limpo se a comunicação falhar
+      abbreviationsCache = [];
       return;
     }
     try {
-      console.log('[SOTE DEBUG content-script] Solicitando abreviações ao service worker...');
+      // console.log('[SOTE DEBUG content-script] Solicitando abreviações ao service worker...');
       chrome.runtime.sendMessage({ type: 'GET_ABBREVIATIONS' }, response => {
         if (chrome.runtime.lastError) {
           console.error("[SOTE DEBUG content-script] Erro em fetchAbbreviations sendMessage:", chrome.runtime.lastError.message);
-          abbreviationsCache = []; 
+          abbreviationsCache = [];
           return;
         }
         if (response && response.abbreviations) {
-          // Log detalhado da resposta completa do service worker
           try {
-            console.log('[SOTE DEBUG content-script] Abreviações recebidas do service worker (antes do filter):', JSON.parse(JSON.stringify(response.abbreviations)));
+            // console.log('[SOTE DEBUG content-script] Abreviações recebidas do service worker (antes do filter):', JSON.parse(JSON.stringify(response.abbreviations)));
           } catch (e) {
-            console.warn('[SOTE DEBUG content-script] Não foi possível fazer stringify da resposta de abreviações:', response.abbreviations, e);
+            // console.warn('[SOTE DEBUG content-script] Não foi possível fazer stringify da resposta de abreviações:', response.abbreviations, e);
           }
-          
           abbreviationsCache = response.abbreviations.filter(abbr => abbr.enabled);
-          console.log(`[SOTE DEBUG content-script] Carregadas ${abbreviationsCache.length} abreviações habilitadas no cache.`);
-
-          // Log específico para 'btw' após popular o cache
-          const btwFromCache = abbreviationsCache.find(a => a.abbreviation === 'btw');
-          if (btwFromCache) {
-            console.log('[SOTE DEBUG content-script] "btw" encontrado no cache:', 
-                        'Possui rules?', btwFromCache.hasOwnProperty('rules'), 
-                        'Tipo de btwFromCache.rules:', typeof btwFromCache.rules,
-                        'É btwFromCache.rules um array?', Array.isArray(btwFromCache.rules));
-            if (btwFromCache.rules !== undefined) {
-                try {
-                    console.log('[SOTE DEBUG content-script] Conteúdo de btwFromCache.rules:', JSON.parse(JSON.stringify(btwFromCache.rules)));
-                } catch(e) {
-                    console.warn('[SOTE DEBUG content-script] Não foi possível fazer stringify de btwFromCache.rules:', btwFromCache.rules, e);
-                }
-            }
-          } else {
-            console.log('[SOTE DEBUG content-script] "btw" NÃO encontrado no cache de abreviações habilitadas.');
-          }
-
+          // console.log(`[SOTE DEBUG content-script] Carregadas ${abbreviationsCache.length} abreviações habilitadas no cache.`);
         } else if (response && response.error) {
             console.error("[SOTE DEBUG content-script] Falha ao buscar abreviações do service worker:", response.error);
             abbreviationsCache = [];
         } else {
-          console.warn("[SOTE DEBUG content-script] Nenhuma resposta válida ou sem abreviações de GET_ABBREVIATIONS");
+          // console.warn("[SOTE DEBUG content-script] Nenhuma resposta válida ou sem abreviações de GET_ABBREVIATIONS");
           abbreviationsCache = [];
         }
       });
@@ -69,15 +74,37 @@
     }
   }
 
-  function handleKeyDown(event) {
-    if (!isEnabled || !event.target || (!event.target.isContentEditable && !event.target.value)) {
-      return;
-    }
-
-    const triggerKey = Object.keys(TRIGGER_KEYS).find(key => event.key === key || event.code === key);
-    if (!triggerKey) return;
+  async function handleKeyDown(event) { 
+    if (!isEnabled || !event.target) return;
 
     const element = event.target;
+    const isEditableField = element.isContentEditable ||
+                            element.tagName === 'INPUT' ||
+                            element.tagName === 'TEXTAREA';
+
+    if (!isEditableField) return;
+
+    const triggerNameFromKey = TRIGGER_KEYS_MAP[event.key];
+    const triggerNameFromCode = TRIGGER_KEYS_MAP[event.code]; // Fallback for some keys like Space
+    const triggerName = triggerNameFromKey || triggerNameFromCode;
+
+
+    if (event.key === 'Backspace' && settings.enableUndo) {
+       // Potencialmente chamar handleBackspaceUndo apenas se _lastExpansion existir
+       if (element._lastExpansion) {
+           handleBackspaceUndo(event); // handleBackspaceUndo já previne o default
+           return; // Backspace processado, não continua para expansão
+       }
+       // Se não há _lastExpansion, deixa o backspace funcionar normalmente
+       return;
+    }
+    
+    // Se não for um gatilho ativo, ou se a tecla não for um gatilho, não faz nada para expansão.
+    if (!triggerName || !settings[triggerName]) {
+        return;
+    }
+
+
     let text = '';
     let cursorPosition = 0;
 
@@ -87,118 +114,97 @@
         const range = selection.getRangeAt(0);
         text = range.startContainer.textContent || '';
         cursorPosition = range.startOffset;
-      }
-    } else {
+      } else { return; } 
+    } else { 
       text = element.value;
       cursorPosition = element.selectionStart;
     }
 
     let wordStart = cursorPosition;
+    // Ajuste para encontrar o início da palavra corretamente mesmo se houver múltiplos espaços antes
+    let tempPos = cursorPosition -1;
+    while(tempPos >= 0 && /\s/.test(text.charAt(tempPos))) {
+        tempPos--;
+    }
+    wordStart = tempPos + 1; // Início do não-espaço
+
+    // Agora, a partir desse não-espaço, volte até encontrar um espaço ou o início da string
     while (wordStart > 0 && !/\s/.test(text.charAt(wordStart - 1))) {
       wordStart--;
     }
     const word = text.substring(wordStart, cursorPosition);
 
-    if (!word) return; 
-
-    // console.log('[SOTE DEBUG content-script] Palavra capturada para expansão:', word);
+    if (!word) return;
 
     for (const abbr of abbreviationsCache) {
-      if (abbr.abbreviation === word) { // Log apenas para a abreviação que corresponde à palavra digitada
-        console.log('[SOTE DEBUG content-script] Verificando abbr do cache que corresponde à palavra digitada:', 
-                    abbr.abbreviation, 
-                    '| Possui rules?', abbr.hasOwnProperty('rules'), 
-                    '| Tipo de abbr.rules:', typeof abbr.rules,
-                    '| É abbr.rules um array?', Array.isArray(abbr.rules));
-        if (abbr.rules !== undefined) {
-            try {
-                console.log('[SOTE DEBUG content-script] Conteúdo de abbr.rules para', abbr.abbreviation, ':', JSON.parse(JSON.stringify(abbr.rules)));
-            } catch(e) {
-                 console.warn('[SOTE DEBUG content-script] Não foi possível fazer stringify de abbr.rules (handleKeyDown):', abbr.rules, e);
-            }
-        }
-      }
-
       if (typeof TextExpander === 'undefined' || typeof TextExpander.matchAbbreviation !== 'function') {
-        console.error('[SOTE DEBUG content-script] TextExpander ou TextExpander.matchAbbreviation não está definido! O script utils/expansion.js pode não ter carregado corretamente.');
-        return; 
+        console.error('[SOTE DEBUG content-script] TextExpander.matchAbbreviation não está definido!');
+        return;
       }
 
       if (TextExpander.matchAbbreviation(word, abbr.abbreviation, abbr.caseSensitive)) {
-        // console.log('[SOTE DEBUG content-script] Abreviação correspondente encontrada via TextExpander.matchAbbreviation:', abbr.abbreviation);
-        event.preventDefault();
+        event.preventDefault(); 
         let expanded = false;
-
-        const rulesToPass = Array.isArray(abbr.rules) ? abbr.rules : []; 
-        if (!Array.isArray(abbr.rules)) {
-            console.warn('[SOTE DEBUG content-script] abbr.rules NÃO era um array para', abbr.abbreviation, `(era ${typeof abbr.rules}). Passando array vazio para TextExpander.`);
-        }
+        const rulesToPass = Array.isArray(abbr.rules) ? abbr.rules : [];
 
         if (element.isContentEditable) {
-          expanded = TextExpander.expandAbbreviationInContentEditable(abbr.abbreviation, abbr.expansion, rulesToPass);
+          expanded = await TextExpander.expandAbbreviationInContentEditable(abbr.abbreviation, abbr.expansion, rulesToPass);
         } else {
-          expanded = TextExpander.expandAbbreviation(element, abbr.abbreviation, abbr.expansion, rulesToPass);
+          expanded = await TextExpander.expandAbbreviation(element, abbr.abbreviation, abbr.expansion, rulesToPass);
         }
 
         if (expanded) {
-          // console.log('[SOTE DEBUG content-script] Expansão realizada para', abbr.abbreviation);
-          if (element.isContentEditable) {
-            const selection = window.getSelection();
-            if (selection.rangeCount > 0) {
-              const range = selection.getRangeAt(0);
-              const textNode = document.createTextNode(TRIGGER_KEYS[triggerKey]);
-              range.insertNode(textNode);
-              range.setStartAfter(textNode);
-              range.setEndAfter(textNode);
-              selection.removeAllRanges();
-              selection.addRange(range);
-            }
-          } else {
-            const cursorPos = element.selectionStart;
-            const newValue = element.value.substring(0, cursorPos) +
-                           TRIGGER_KEYS[triggerKey] +
-                           element.value.substring(cursorPos);
-            element.value = newValue;
-            element.setSelectionRange(cursorPos + 1, cursorPos + 1);
-            element.dispatchEvent(new Event('input', { bubbles: true }));
-          }
-
           if (chrome.runtime && chrome.runtime.sendMessage) {
             chrome.runtime.sendMessage({
               type: 'UPDATE_USAGE',
               abbreviation: abbr.abbreviation
-            }, response => { // Adicionado callback para capturar erros
+            }, response => {
                 if (chrome.runtime.lastError) {
-                    console.warn("[SOTE DEBUG content-script] Erro ao enviar UPDATE_USAGE:", chrome.runtime.lastError.message);
+                    // console.warn("[SOTE DEBUG content-script] Erro ao enviar UPDATE_USAGE:", chrome.runtime.lastError.message);
                 }
             });
           }
-          break;
+          break; 
         }
       }
     }
   }
 
+  function handleBackspaceUndo(event) {
+    const element = event.target;
+    // A verificação de element._lastExpansion já está no chamador (handleKeyDown)
+    // mas uma dupla verificação não faz mal.
+    if (!element || !element._lastExpansion) return;
+
+    event.preventDefault(); 
+
+    if (element.isContentEditable) {
+        TextExpander.undoExpansionInContentEditable(element);
+    } else {
+        TextExpander.undoExpansion(element);
+    }
+  }
+
+
   function init() {
-    fetchAbbreviations(); 
-    document.addEventListener('keydown', handleKeyDown, true);
-    
-    chrome.runtime.onMessage.addListener((message) => { 
-      // console.log('[SOTE DEBUG content-script] Mensagem recebida:', message);
-      if (message.type === 'ABBREVIATIONS_UPDATED') {
-        console.log('[SOTE DEBUG content-script] Recebido ABBREVIATIONS_UPDATED, buscando novamente...');
+    loadSettings();
+    fetchAbbreviations();
+    document.addEventListener('keydown', handleKeyDown, true); 
+
+    chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+      if (message.type === 'ABBREVIATIONS_UPDATED' || message.type === 'INITIAL_SEED_COMPLETE') {
+        // console.log('[SOTE DEBUG content-script] Recebido ABBREVIATIONS_UPDATED/INITIAL_SEED_COMPLETE, buscando novamente...');
         fetchAbbreviations();
-        // Não retorne true aqui se não for chamar sendResponse()
-      }
-      
-      if (message.type === 'TOGGLE_ENABLED') {
-        console.log('[SOTE DEBUG content-script] Recebido TOGGLE_ENABLED, novo estado:', message.enabled);
+      } else if (message.type === 'TOGGLE_ENABLED') {
+        // console.log('[SOTE DEBUG content-script] Recebido TOGGLE_ENABLED, novo estado:', message.enabled);
         isEnabled = message.enabled;
-        // Não retorne true aqui se não for chamar sendResponse()
+      } else if (message.type === 'SETTINGS_UPDATED') {
+        // console.log('[SOTE DEBUG content-script] Recebido SETTINGS_UPDATED, recarregando configurações...');
+        settings = { ...settings, ...message.settings };
       }
-      // Nenhum 'return true' explícito significa que a porta da mensagem fechará, o que é correto aqui.
+      return false; // Não estamos usando sendResponse aqui.
     });
-    
+
     observeShadowDom();
   }
 
@@ -211,7 +217,6 @@
               if (node.shadowRoot) {
                 attachShadowListeners(node.shadowRoot);
               }
-              
               const shadowElements = node.querySelectorAll('*');
               for (const element of shadowElements) {
                 if (element.shadowRoot) {
@@ -223,12 +228,10 @@
         }
       }
     });
-    
     observer.observe(document.documentElement, {
       childList: true,
       subtree: true
     });
-    
     const shadowElements = document.querySelectorAll('*');
     for (const element of shadowElements) {
       if (element.shadowRoot) {
@@ -239,7 +242,6 @@
 
   function attachShadowListeners(shadowRoot) {
     shadowRoot.addEventListener('keydown', handleKeyDown, true);
-    
     const observer = new MutationObserver(mutations => {
       for (const mutation of mutations) {
         if (mutation.type === 'childList') {
@@ -248,7 +250,6 @@
               if (node.shadowRoot) {
                 attachShadowListeners(node.shadowRoot);
               }
-              
               const shadowElements = node.querySelectorAll('*');
               for (const element of shadowElements) {
                 if (element.shadowRoot) {
@@ -260,7 +261,6 @@
         }
       }
     });
-    
     observer.observe(shadowRoot, {
       childList: true,
       subtree: true

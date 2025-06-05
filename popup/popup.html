@@ -25,7 +25,6 @@
     
     <div class="abbreviations-container">
       <div class="abbreviations-list" id="abbreviations-list">
-        <!-- Abbreviations will be populated here -->
         <div class="loading">Carregando abreviações...</div>
       </div>
     </div>
@@ -36,40 +35,44 @@
     </div>
     
     <div id="add-form" class="add-form hidden">
-  <h2>Adicionar Nova Abreviação</h2>
-  <div class="form-group">
-    <label for="new-abbreviation">Abreviação</label>
-    <input type="text" id="new-abbreviation" placeholder="tdb, vlw">
-  </div>
-  <div class="form-group">
-    <label for="new-expansion">Expansão</label>
-    <input type="text" id="new-expansion" placeholder="tudo bem, valeu">
-  </div>
-  <div class="form-group">
-    <label for="new-category">Categoria</label>
-    <select id="new-category">
-      <option value="Comum">Comum</option>
-      <option value="Pessoal">Pessoal</option>
-      <option value="Trabalho">Trabalho</option>
-      <option value="Personalizada">Personalizada</option>
-      </select>
-  </div>
+      <h2>Adicionar Nova Abreviação</h2>
+      <div class="form-group">
+        <label for="new-abbreviation">Abreviação</label>
+        <input type="text" id="new-abbreviation" placeholder="tdb, vlw">
+      </div>
+      <div class="form-group">
+        <label for="new-expansion">Expansão</label>
+        <textarea id="new-expansion" placeholder="tudo bem, valeu" rows="3"></textarea>
+        <div class="action-buttons-container">
+          <button type="button" class="btn-insert-action" data-action="$cursor$" title="Inserir marcador de cursor">$cursor$</button>
+          <button type="button" class="btn-insert-action" data-action="$transferencia$" title="Inserir conteúdo da área de transferência">$transferencia$</button>
+        </div>
+      </div>
+      <div class="form-group">
+        <label for="new-category">Categoria</label>
+        <select id="new-category">
+          <option value="Comum">Comum</option>
+          <option value="Pessoal">Pessoal</option>
+          <option value="Trabalho">Trabalho</option>
+          <option value="Personalizada">Personalizada</option>
+        </select>
+      </div>
 
-  <div class="form-group" id="custom-category-group" style="display: none;">
-    <label for="new-custom-category">Nome da Categoria Personalizada</label>
-    <input type="text" id="new-custom-category" placeholder="Ex: Estudos, Jogos">
+      <div class="form-group" id="custom-category-group" style="display: none;">
+        <label for="new-custom-category">Nome da Categoria Personalizada</label>
+        <input type="text" id="new-custom-category" placeholder="Ex: Estudos, Jogos">
+      </div>
+      <div class="form-group checkbox">
+        <input type="checkbox" id="new-case-sensitive">
+        <label for="new-case-sensitive">Diferenciar Maiúsc./Minúsc.</label>
+      </div>
+      <div class="form-actions">
+        <button id="cancel-btn" class="cancel-btn">Cancelar</button>
+        <button id="save-btn" class="save-btn">Salvar</button>
+      </div>
+    </div>
   </div>
-  <div class="form-group checkbox">
-    <input type="checkbox" id="new-case-sensitive">
-    <label for="new-case-sensitive">Diferenciar Maiúsc./Minúsc.</label>
-  </div>
-  <div class="form-actions">
-    <button id="cancel-btn" class="cancel-btn">Cancelar</button>
-    <button id="save-btn" class="save-btn">Salvar</button>
-  </div>
-</div>
-  </div>
-    <script src="../utils/db.js"></script>
+  <script src="../utils/db.js"></script>
   <script src="popup.js"></script>
 </body>
 </html>

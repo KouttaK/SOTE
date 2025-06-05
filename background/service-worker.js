@@ -101,7 +101,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           new Promise((resolve, reject) => {
             const request = abbreviationsObjectStore.getAll();
             request.onsuccess = () => resolve(request.result);
-            request.onerror = (e) => { // Modificado para logar o erro corretamente
+            request.onerror = (e) => { 
               console.error('[SOTE Service Worker DEBUG] Erro ao buscar abreviações:', e.target.error);
               reject(request.error);
             }
@@ -109,14 +109,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           new Promise((resolve, reject) => {
             const request = rulesObjectStore.getAll();
             request.onsuccess = () => resolve(request.result);
-            request.onerror = (e) => { // Modificado para logar o erro corretamente
+            request.onerror = (e) => { 
               console.error('[SOTE Service Worker DEBUG] Erro ao buscar regras:', e.target.error);
               reject(request.error);
             }
           })
         ]);
 
-        // Logs para depuração
         try {
             console.log('[SOTE Service Worker DEBUG] Abreviações do DB:', abbreviationsArray ? JSON.parse(JSON.stringify(abbreviationsArray)) : 'Nenhuma');
             console.log('[SOTE Service Worker DEBUG] Regras do DB:', rulesArray ? JSON.parse(JSON.stringify(rulesArray)) : 'Nenhuma');
@@ -131,12 +130,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           abbreviationsArray.forEach(abbr => {
             abbr.rules = rulesArray.filter(rule => rule.abbreviationId === abbr.abbreviation);
             
-            // Log para cada abreviação
             console.log(`[SOTE Service Worker DEBUG] Para abbr '${abbr.abbreviation}':`, 
                         `abbr.rules atribuído como tipo: ${typeof abbr.rules},`, 
                         `é array? ${Array.isArray(abbr.rules)},`, 
                         `tamanho: ${Array.isArray(abbr.rules) ? abbr.rules.length : 'N/A'}`);
-            if (abbr.abbreviation === 'btw') { // Log específico para 'btw'
+            if (abbr.abbreviation === 'btw') { 
                 try {
                     console.log(`[SOTE Service Worker DEBUG] Detalhe de abbr.rules para 'btw':`, JSON.parse(JSON.stringify(abbr.rules)));
                 } catch (e) {
@@ -162,21 +160,68 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       }
     })();
     return true; 
+  } else if (message.type === 'UPDATE_USAGE') { // Added handler for UPDATE_USAGE
+    (async () => {
+      const abbreviationKey = message.abbreviation;
+      if (!abbreviationKey) {
+        sendResponse({ error: 'Abbreviation key not provided for UPDATE_USAGE.' });
+        return;
+      }
+      try {
+        const db = await openDatabase(); // Uses service worker's openDatabase
+        const transaction = db.transaction(STORE_NAME, 'readwrite');
+        const store = transaction.objectStore(STORE_NAME);
+        
+        const request = store.get(abbreviationKey);
+        
+        request.onerror = (event) => {
+          console.error('Failed to get abbreviation for usage update:', event.target.error);
+          sendResponse({ error: 'Failed to get abbreviation for update.' });
+        };
+        
+        request.onsuccess = () => {
+          const data = request.result;
+          if (data) {
+            data.usageCount = (data.usageCount || 0) + 1;
+            data.lastUsed = new Date().toISOString();
+            
+            const updateRequest = store.put(data);
+            updateRequest.onerror = (event) => {
+              console.error('Failed to update abbreviation usage:', event.target.error);
+              sendResponse({ error: 'Failed to update abbreviation usage.' });
+            };
+            updateRequest.onsuccess = () => {
+              sendResponse({ success: true });
+              // After successfully updating, broadcast that abbreviations data has changed
+              // This is important for other parts like popup/dashboard to refresh
+              chrome.runtime.sendMessage({ type: 'ABBREVIATIONS_UPDATED' })
+                .catch(e => console.warn("SW: Could not send ABBREVIATIONS_UPDATED after usage update:", e));
+            };
+          } else {
+            sendResponse({ error: 'Abbreviation not found for update.' });
+          }
+        };
+      } catch (error) {
+        console.error('Error updating usage stats:', error);
+        sendResponse({ error: 'Error updating usage stats.' });
+      }
+    })();
+    return true; // Indicate asynchronous response
   }
-  // Adicione outros manipuladores de mensagem aqui se necessário
+  // Not returning true for other message types if they are synchronous or don't send a response
 }); 
 
 // Broadcast changes to all tabs
 chrome.storage.onChanged.addListener((changes, namespace) => {
-  if (namespace === 'sync' && changes.abbreviations) { 
+  if (namespace === 'sync' && changes.abbreviations) { // This listener might be for an older storage mechanism or a different feature.
+                                                       // The current issue is with IndexedDB updates.
+                                                       // For IndexedDB changes, the ABBREVIATIONS_UPDATED message is sent explicitly.
     chrome.tabs.query({}, tabs => {
       tabs.forEach(tab => {
-        if (tab.id) { // Adicionada verificação se tab.id existe
+        if (tab.id) { 
             chrome.tabs.sendMessage(tab.id, { 
             type: 'ABBREVIATIONS_UPDATED' 
-            }).catch((error) => { // Modificado para capturar o erro específico
-            // console.warn(`Ignorando erro ao enviar mensagem para tab ${tab.id}: ${error.message}`);
-            // Opcional: Logar apenas se não for o erro comum de "receiving end does not exist"
+            }).catch((error) => { 
             if (error.message && !error.message.toLowerCase().includes('receiving end does not exist')) {
                 console.warn(`Erro ao enviar mensagem ABBREVIATIONS_UPDATED para tab ${tab.id}:`, error);
             }
@@ -197,7 +242,7 @@ function openDatabase() {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, DB_VERSION);
     
-    request.onerror = (event) => { // Adicionado event para acesso ao error
+    request.onerror = (event) => { 
       console.error('Falha ao abrir banco de dados', event.target.error);
       reject(new Error('Falha ao abrir banco de dados'));
     };

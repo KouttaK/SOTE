@@ -18,7 +18,8 @@
   },
   "permissions": [
     "storage",
-    "activeTab"
+    "activeTab",
+    "clipboardRead"
   ],
   "content_scripts": [
     {

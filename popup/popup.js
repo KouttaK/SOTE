@@ -1,3 +1,4 @@
+// SOTE-main/popup/popup.js
 // DOM Elements
 const abbreviationsList = document.getElementById('abbreviations-list');
 const searchInput = document.getElementById('search-input');
@@ -8,43 +9,74 @@ const dashboardBtn = document.getElementById('dashboard-btn');
 const addForm = document.getElementById('add-form');
 const cancelBtn = document.getElementById('cancel-btn');
 const saveBtn = document.getElementById('save-btn');
-const newAbbreviation = document.getElementById('new-abbreviation');
-const newExpansion = document.getElementById('new-expansion');
-const newCategory = document.getElementById('new-category'); //
-const newCaseSensitive = document.getElementById('new-case-sensitive');
-
-// ADICIONAR ESTAS REFERÊNCIAS
+const newAbbreviationInput = document.getElementById('new-abbreviation'); // Renomeado para clareza
+const newExpansionTextarea = document.getElementById('new-expansion'); // Alterado para textarea
+const newCategorySelect = document.getElementById('new-category'); // Renomeado para clareza
+const newCaseSensitiveCheckbox = document.getElementById('new-case-sensitive'); // Renomeado para clareza
 const customCategoryGroup = document.getElementById('custom-category-group');
 const newCustomCategoryInput = document.getElementById('new-custom-category');
+const insertActionButtons = document.querySelectorAll('#add-form .btn-insert-action');
 
 // State
 let abbreviations = [];
 let filteredAbbreviations = [];
 let currentEditId = null;
 let isEnabled = true;
+
+/**
+ * Inserts text at the current cursor position in a textarea.
+ * @param {HTMLTextAreaElement} textarea The textarea element.
+ * @param {string} textToInsert The text to insert.
+ */
+function insertTextAtCursor(textarea, textToInsert) {
+  if (!textarea) return;
+
+  const startPos = textarea.selectionStart;
+  const endPos = textarea.selectionEnd;
+  const scrollTop = textarea.scrollTop; // Salva a posição do scroll
+
+  textarea.value = textarea.value.substring(0, startPos) +
+                   textToInsert +
+                   textarea.value.substring(endPos, textarea.value.length);
+
+  textarea.selectionStart = startPos + textToInsert.length;
+  textarea.selectionEnd = startPos + textToInsert.length;
+  textarea.scrollTop = scrollTop; // Restaura a posição do scroll
+  textarea.focus();
+}
+
+
+/**
+ * Performs a local refresh of the popup's data views.
+ */
+async function performLocalRefreshPopup() {
+  await loadAbbreviations();
+  await loadCategories(); 
+}
+
+
 /**
  * Initialize the popup
  */
 async function init() {
-  if (!window.TextExpanderDB || typeof window.TextExpanderDB.getAllAbbreviations !== 'function') { //
-    console.error("TextExpanderDB não foi inicializado corretamente.."); //
-    abbreviationsList.innerHTML = `<div class="empty-state"><p>Erro ao inicializar. Verifique o console.</p></div>`; //
+  if (!window.TextExpanderDB || typeof window.TextExpanderDB.getAllAbbreviations !== 'function') { 
+    console.error("TextExpanderDB não foi inicializado corretamente.."); 
+    abbreviationsList.innerHTML = `<div class="empty-state"><p>Erro ao inicializar. Verifique o console.</p></div>`; 
     return;
   }
 
-  await loadAbbreviations(); //
-  await loadCategories(); //
+  await loadAbbreviations(); 
+  await loadCategories(); 
 
-  searchInput.addEventListener('input', handleSearch); //
-  enabledToggle.addEventListener('change', handleToggleEnabled); //
-  addBtn.addEventListener('click', showAddForm); //
-  dashboardBtn.addEventListener('click', openDashboard); //
-  cancelBtn.addEventListener('click', hideAddForm); //
-  saveBtn.addEventListener('click', handleSaveAbbreviation); //
+  searchInput.addEventListener('input', handleSearch); 
+  enabledToggle.addEventListener('change', handleToggleEnabled); 
+  addBtn.addEventListener('click', showAddForm); 
+  dashboardBtn.addEventListener('click', openDashboard); 
+  cancelBtn.addEventListener('click', hideAddForm); 
+  saveBtn.addEventListener('click', handleSaveAbbreviation); 
 
-  // ADICIONAR: Manipulador de eventos para o seletor de categoria
-  if (newCategory) {
-    newCategory.addEventListener('change', function() {
+  if (newCategorySelect) {
+    newCategorySelect.addEventListener('change', function() {
       if (this.value === 'Personalizada') {
         if (customCategoryGroup) customCategoryGroup.style.display = 'block';
         if (newCustomCategoryInput) newCustomCategoryInput.focus();
@@ -54,12 +86,33 @@ async function init() {
     });
   }
 
-  chrome.storage.sync.get('enabled', (result) => { //
-    if (result.hasOwnProperty('enabled')) { //
-      isEnabled = result.enabled; //
-      enabledToggle.checked = isEnabled; //
-      statusText.textContent = isEnabled ? 'Habilitado' : 'Disabilitado'; // MODIFICADO para Português, como no restante do código
+  insertActionButtons.forEach(button => {
+    button.addEventListener('click', function() {
+      const action = this.getAttribute('data-action');
+      if (newExpansionTextarea && action) {
+        insertTextAtCursor(newExpansionTextarea, action);
+      }
+    });
+  });
+
+  chrome.storage.sync.get('enabled', (result) => { 
+    if (result.hasOwnProperty('enabled')) { 
+      isEnabled = result.enabled; 
+      enabledToggle.checked = isEnabled; 
+      statusText.textContent = isEnabled ? 'Habilitado' : 'Desabilitado'; 
+    } else { 
+        isEnabled = true;
+        enabledToggle.checked = true;
+        statusText.textContent = 'Habilitado';
+        chrome.storage.sync.set({ enabled: true });
     }
+  });
+
+  chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (message.type === 'ABBREVIATIONS_UPDATED' || message.type === 'INITIAL_SEED_COMPLETE') {
+      performLocalRefreshPopup();
+    }
+    return true; // Necessário para sendResponse assíncrono, embora não usado aqui.
   });
 }
 
@@ -70,59 +123,50 @@ async function init() {
 async function loadAbbreviations() {
   try {
     abbreviations = await window.TextExpanderDB.getAllAbbreviations();
-    filteredAbbreviations = [...abbreviations];
-    renderAbbreviations();
+    filterAbbreviations(); 
   } catch (error) {
     console.error('Erro ao carregar abreviações:', error);
     abbreviationsList.innerHTML = `
       <div class="empty-state">
-        <p>Erro ao carregar abreviações. Por favor, tente novamente.</p>
+        <p>Erro ao carregar abreviações. Tente reabrir o popup.</p>
       </div>
     `;
   }
 }
 
 /**
- * Load categories from the database
+ * Load categories from the database and update the dropdown
  */
 async function loadCategories() {
   try {
-    const categories = await window.TextExpanderDB.getAllCategories(); //
+    const categories = await window.TextExpanderDB.getAllCategories(); 
     
-    // Mantém as opções padrão e remove apenas as carregadas dinamicamente anteriormente
-    const defaultOptionsCount = Array.from(newCategory.options).filter(opt => ['Comum', 'Pessoal', 'Trabalho', 'Personalizada'].includes(opt.value)).length;
-    while (newCategory.options.length > defaultOptionsCount) { //
-      // Encontra a primeira opção que não é uma das padrão para remover
-      let removed = false;
-      for (let i = 0; i < newCategory.options.length; i++) {
-          if (!['Comum', 'Pessoal', 'Trabalho', 'Personalizada'].includes(newCategory.options[i].value)) {
-              newCategory.remove(i);
-              removed = true;
-              break;
-          }
-      }
-      if (!removed) break; // Caso só restem as padrões
-    }
+    const standardValues = ['Comum', 'Pessoal', 'Trabalho', 'Personalizada'];
+    const currentOptions = Array.from(newCategorySelect.options).map(opt => opt.value);
     
-    const existingOptionValues = new Set(Array.from(newCategory.options).map(opt => opt.value));
-
-    categories.forEach(category => { //
-      if (!existingOptionValues.has(category)) { // // Evita duplicar opções já existentes
-        const option = document.createElement('option'); //
-        option.value = category; //
-        option.textContent = category; //
-        // Insere antes da opção "Personalizada" se ela existir, ou no final
-        const personalizadaOption = Array.from(newCategory.options).find(opt => opt.value === 'Personalizada');
-        if (personalizadaOption) {
-            newCategory.insertBefore(option, personalizadaOption);
-        } else {
-            newCategory.appendChild(option); //
+    currentOptions.forEach(val => {
+        if (!standardValues.includes(val) && !categories.includes(val)) {
+            const optToRemove = newCategorySelect.querySelector(`option[value="${val}"]`);
+            if (optToRemove) newCategorySelect.removeChild(optToRemove);
         }
-        existingOptionValues.add(category); // Adiciona ao set para futuras checagens
+    });
+
+    const personalizadaOption = newCategorySelect.querySelector('option[value="Personalizada"]');
+    
+    categories.forEach(category => { 
+      if (!newCategorySelect.querySelector(`option[value="${category}"]`)) { 
+        const option = document.createElement('option'); 
+        option.value = category; 
+        option.textContent = category; 
+        if (personalizadaOption) {
+            newCategorySelect.insertBefore(option, personalizadaOption);
+        } else {
+            newCategorySelect.appendChild(option); 
+        }
       }
     });
   } catch (error) {
-    console.error('Erro ao carregar categorias:', error); //
+    console.error('Erro ao carregar categorias:', error); 
   }
 }
 
@@ -131,10 +175,18 @@ async function loadCategories() {
  * Render abbreviations in the list
  */
 function renderAbbreviations() {
+  if (filteredAbbreviations.length === 0 && abbreviations.length > 0 && searchInput.value.trim() !== '') {
+    abbreviationsList.innerHTML = `
+      <div class="empty-state">
+        <p>Nenhuma abreviação encontrada para "${searchInput.value}".</p>
+      </div>
+    `;
+    return;
+  }
   if (filteredAbbreviations.length === 0) {
     abbreviationsList.innerHTML = `
       <div class="empty-state">
-        <p>Nenhuma abreviação encontrada. Adicione algumas para começar!</p>
+        <p>Nenhuma abreviação cadastrada. Adicione algumas!</p>
       </div>
     `;
     return;
@@ -142,36 +194,36 @@ function renderAbbreviations() {
   
   abbreviationsList.innerHTML = '';
   
-  filteredAbbreviations.sort((a, b) => {
-    if (a.lastUsed && b.lastUsed) {
-      return new Date(b.lastUsed) - new Date(a.lastUsed);
-    } else if (a.lastUsed) {
-      return -1;
-    } else if (b.lastUsed) {
-      return 1;
-    } else {
-      return a.abbreviation.localeCompare(b.abbreviation);
+  const sortedForDisplay = [...filteredAbbreviations].sort((a, b) => {
+    const lastUsedA = a.lastUsed ? new Date(a.lastUsed).getTime() : 0;
+    const lastUsedB = b.lastUsed ? new Date(b.lastUsed).getTime() : 0;
+
+    if (lastUsedA !== lastUsedB) {
+      return lastUsedB - lastUsedA; 
     }
+    return a.abbreviation.localeCompare(b.abbreviation); 
   });
   
-  filteredAbbreviations.forEach(abbr => {
+  sortedForDisplay.forEach(abbr => {
     const item = document.createElement('div');
     item.className = 'abbreviation-item';
     
+    const expansionDisplay = abbr.expansion.length > 30 ? abbr.expansion.substring(0, 27) + '...' : abbr.expansion;
+
     item.innerHTML = `
       <div class="abbreviation-details">
         <span class="abbreviation-text">${abbr.abbreviation}</span>
-        <span class="expansion-text">${abbr.expansion}</span>
-        <span class="category-badge">${abbr.category || 'Uncategorized'}</span>
+        <span class="expansion-text" title="${abbr.expansion}">${expansionDisplay}</span>
+        <span class="category-badge">${abbr.category || 'Sem Categoria'}</span>
       </div>
       <div class="item-actions">
-        <button class="edit-btn" data-id="${abbr.abbreviation}">
+        <button class="edit-btn" data-id="${abbr.abbreviation}" title="Editar">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M12 20h9"></path>
             <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
           </svg>
         </button>
-        <button class="delete-btn" data-id="${abbr.abbreviation}">
+        <button class="delete-btn" data-id="${abbr.abbreviation}" title="Excluir">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M3 6h18"></path>
             <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
@@ -191,10 +243,7 @@ function renderAbbreviations() {
   });
 }
 
-/**
- * Handle search input
- */
-function handleSearch() {
+function filterAbbreviations() {
   const searchTerm = searchInput.value.trim().toLowerCase();
   
   if (searchTerm === '') {
@@ -206,99 +255,81 @@ function handleSearch() {
              (abbr.category && abbr.category.toLowerCase().includes(searchTerm));
     });
   }
-  
   renderAbbreviations();
 }
 
-/**
- * Toggle extension enabled state
- */
+function handleSearch() {
+  filterAbbreviations();
+}
+
 function handleToggleEnabled() {
   isEnabled = enabledToggle.checked;
-  statusText.textContent = isEnabled ? 'Habilitado' : 'Disabilitado';
+  statusText.textContent = isEnabled ? 'Habilitado' : 'Desabilitado';
   
   chrome.storage.sync.set({ enabled: isEnabled });
   
   chrome.tabs.query({}, (tabs) => {
     tabs.forEach(tab => {
-      chrome.tabs.sendMessage(tab.id, { 
-        type: 'TOGGLE_ENABLED', 
-        enabled: isEnabled 
-      }).catch(err => {
-        // Ignore errors for tabs that can't receive messages
-      });
+      if (tab.id) { 
+        chrome.tabs.sendMessage(tab.id, { 
+          type: 'TOGGLE_ENABLED', 
+          enabled: isEnabled 
+        }).catch(err => { /* Ignorar erro "no receiving end" */ });
+      }
     });
   });
 }
 
-/**
- * Show the add form
- */
-/**
- * Show the add form
- */
 function showAddForm() {
-  addForm.classList.remove('hidden'); //
-  newAbbreviation.focus(); //
+  addForm.classList.remove('hidden'); 
   
-  if (!currentEditId) { // Adicionando nova abreviação
-    newAbbreviation.value = ''; //
-    newAbbreviation.readOnly = false;
-    newExpansion.value = ''; //
-    newCategory.value = 'Comum'; //
-    newCaseSensitive.checked = false; //
+  if (!currentEditId) { 
+    newAbbreviationInput.value = ''; 
+    newAbbreviationInput.readOnly = false;
+    newExpansionTextarea.value = ''; 
+    newCategorySelect.value = 'Comum'; 
+    newCaseSensitiveCheckbox.checked = false; 
     if (newCustomCategoryInput) newCustomCategoryInput.value = '';
-  } else { // Editando abreviação existente
-    newAbbreviation.readOnly = true; // Campo abreviação não deve ser editável
-    // Valores são preenchidos por handleEditAbbreviation
+  } else { 
+    newAbbreviationInput.readOnly = true; 
   }
 
-  // Garante que o campo de categoria personalizada seja exibido/oculto corretamente
-  if (newCategory) {
-    if (newCategory.value === 'Personalizada') {
+  if (newCategorySelect) {
+    if (newCategorySelect.value === 'Personalizada') {
       if (customCategoryGroup) customCategoryGroup.style.display = 'block';
     } else {
       if (customCategoryGroup) customCategoryGroup.style.display = 'none';
     }
   }
+  newAbbreviationInput.focus(); 
 }
 
-/**
- * Hide the add form
- */
 function hideAddForm() {
-  addForm.classList.add('hidden'); //
-  currentEditId = null; //
-  // ADICIONAR: Ocultar e limpar campo de categoria personalizada
+  addForm.classList.add('hidden'); 
+  currentEditId = null; 
   if (customCategoryGroup) customCategoryGroup.style.display = 'none';
   if (newCustomCategoryInput) newCustomCategoryInput.value = '';
-  newAbbreviation.readOnly = false; // Reseta para caso de nova adição
+  newAbbreviationInput.readOnly = false; 
 }
 
-/**
- * Open the dashboard page
- */
 function openDashboard() {
   chrome.tabs.create({
     url: chrome.runtime.getURL('dashboard/dashboard.html')
   });
+  window.close(); 
 }
 
-/**
- * Handle saving a new abbreviation
- */
 async function handleSaveAbbreviation() {
-  const abbreviation = newAbbreviation.value.trim(); //
-  const expansion = newExpansion.value.trim(); //
-  let category = newCategory.value; //
-  const caseSensitive = newCaseSensitive.checked; //
+  const abbreviation = newAbbreviationInput.value.trim(); 
+  const expansion = newExpansionTextarea.value.trim(); // De textarea agora
+  let category = newCategorySelect.value; 
+  const caseSensitive = newCaseSensitiveCheckbox.checked; 
   
-  if (!abbreviation || !expansion) { //
-    alert('Por favor, insira a abreviação e a expansão.'); //
-    return; //
+  if (!abbreviation || !expansion) { 
+    alert('Por favor, insira a abreviação e a expansão.'); 
+    return; 
   }
   
-  // ADICIONAR: Lógica para obter nome da categoria personalizada
   if (category === 'Personalizada') {
     const customName = newCustomCategoryInput ? newCustomCategoryInput.value.trim() : '';
     if (!customName) {
@@ -313,76 +344,86 @@ async function handleSaveAbbreviation() {
     let abbrData = {
       abbreviation,
       expansion,
-      category, // Usa o valor da categoria (pode ser o nome personalizado)
+      category, 
       caseSensitive,
-      enabled: true, //
-      createdAt: new Date().toISOString(), //
-      lastUsed: null, //
-      usageCount: 0 //
+      enabled: true, 
+      rules: [], 
     };
     
-    if (currentEditId) { //
-      const existingAbbr = abbreviations.find(a => a.abbreviation === currentEditId); //
-      if (existingAbbr) { //
-        // Mantém os dados existentes que não são editados no formulário da popup
-        abbrData.createdAt = existingAbbr.createdAt; //
-        abbrData.lastUsed = existingAbbr.lastUsed; //
-        abbrData.usageCount = existingAbbr.usageCount; //
-        abbrData.enabled = existingAbbr.enabled; // Assume que enabled não é alterado na popup quick-add
+    if (currentEditId) { 
+      const existingAbbr = abbreviations.find(a => a.abbreviation === currentEditId); 
+      if (existingAbbr) { 
+        abbrData.createdAt = existingAbbr.createdAt; 
+        abbrData.lastUsed = existingAbbr.lastUsed; 
+        abbrData.usageCount = existingAbbr.usageCount; 
+        abbrData.enabled = existingAbbr.enabled; 
+        abbrData.rules = existingAbbr.rules || []; 
       }
-      await window.TextExpanderDB.updateAbbreviation(abbrData); //
+      await window.TextExpanderDB.updateAbbreviation(abbrData); 
     } else {
-      await window.TextExpanderDB.addAbbreviation(abbrData); //
+      abbrData.createdAt = new Date().toISOString(); 
+      abbrData.lastUsed = null; 
+      abbrData.usageCount = 0;
+      await window.TextExpanderDB.addAbbreviation(abbrData); 
     }
     
-    await loadAbbreviations(); //
-    await loadCategories(); // Recarrega categorias, pode haver uma nova
-    hideAddForm(); //
+    await performLocalRefreshPopup();
+    hideAddForm(); 
   } catch (error) {
-    console.error('Erro ao salvar abreviação:', error); //
-    if (error.message && error.message.includes('Key already exists')) {
+    console.error('Erro ao salvar abreviação:', error); 
+    if (error.message && error.message.toLowerCase().includes('key already exists')) {
         alert('Erro ao salvar: A abreviação já existe.');
     } else {
-        alert('Erro ao salvar abreviação. Por favor, tente novamente.'); //
+        alert('Erro ao salvar abreviação. Por favor, tente novamente.'); 
     }
   }
 }
 
-
-/**
- * Handle editing an abbreviation
- * @param {Object} abbr The abbreviation to edit
- */
-function handleEditAbbreviation(abbr) { //
-  currentEditId = abbr.abbreviation; //
-  newAbbreviation.value = abbr.abbreviation; //
-  newExpansion.value = abbr.expansion; //
-  newCaseSensitive.checked = abbr.caseSensitive || false; //
+function handleEditAbbreviation(abbr) { 
+  currentEditId = abbr.abbreviation; 
+  newAbbreviationInput.value = abbr.abbreviation; 
+  newExpansionTextarea.value = abbr.expansion; // Para textarea
+  newCaseSensitiveCheckbox.checked = abbr.caseSensitive || false; 
 
   const standardCategories = ['Comum', 'Pessoal', 'Trabalho', 'Personalizada'];
   if (abbr.category && !standardCategories.includes(abbr.category)) {
-    // É uma categoria personalizada existente
-    newCategory.value = 'Personalizada';
-    if (customCategoryGroup) customCategoryGroup.style.display = 'block';
-    if (newCustomCategoryInput) newCustomCategoryInput.value = abbr.category;
+    let optionExists = false;
+    for (let i = 0; i < newCategorySelect.options.length; i++) {
+        if (newCategorySelect.options[i].value === abbr.category) {
+            optionExists = true;
+            break;
+        }
+    }
+    if (optionExists) {
+        newCategorySelect.value = abbr.category;
+    } else {
+        newCategorySelect.value = 'Personalizada';
+        if (newCustomCategoryInput) newCustomCategoryInput.value = abbr.category;
+    }
   } else {
-    newCategory.value = abbr.category || 'Comum'; //
-    if (customCategoryGroup) customCategoryGroup.style.display = 'none';
-    if (newCustomCategoryInput) newCustomCategoryInput.value = '';
+    newCategorySelect.value = abbr.category || 'Comum'; 
   }
   
-  showAddForm(); //
+  if (newCategorySelect.value === 'Personalizada') {
+      if (customCategoryGroup) customCategoryGroup.style.display = 'block';
+      if (abbr.category && !standardCategories.includes(abbr.category)) {
+          if (newCustomCategoryInput) newCustomCategoryInput.value = abbr.category;
+      } else {
+         if (newCustomCategoryInput) newCustomCategoryInput.value = ''; 
+      }
+  } else {
+      if (customCategoryGroup) customCategoryGroup.style.display = 'none';
+      if (newCustomCategoryInput) newCustomCategoryInput.value = '';
+  }
+  
+  showAddForm(); 
 }
 
-/**
- * Handle deleting an abbreviation
- * @param {string} abbreviation The abbreviation to delete
- */
-async function handleDeleteAbbreviation(abbreviation) {
-  if (confirm(`Tem certeza que deseja excluir "${abbreviation}"?`)) {
+async function handleDeleteAbbreviation(abbreviationKey) {
+  if (confirm(`Tem certeza que deseja excluir "${abbreviationKey}"? (As regras associadas não serão excluídas pelo popup)`)) {
     try {
-      await window.TextExpanderDB.deleteAbbreviation(abbreviation);
-      await loadAbbreviations();
+      await window.TextExpanderDB.deleteAbbreviation(abbreviationKey);
+      await performLocalRefreshPopup();
     } catch (error) {
       console.error('Erro ao excluir abreviação:', error);
       alert('Erro ao excluir abreviação. Por favor, tente novamente.');

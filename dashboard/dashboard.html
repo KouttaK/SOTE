@@ -133,7 +133,11 @@
             
             <div class="form-group">
               <label for="expansion">Expansão</label>
-              <input type="text" id="expansion" placeholder="Tudo bem, valeu, porfavor" required>
+              <textarea id="expansion" placeholder="Tudo bem, valeu, porfavor" required rows="3"></textarea>
+              <div class="action-buttons-container">
+                <button type="button" class="btn-insert-action" data-action="$cursor$" title="Inserir marcador de cursor">$cursor$</button>
+                <button type="button" class="btn-insert-action" data-action="$transferencia$" title="Inserir conteúdo da área de transferência">$transferencia$</button>
+              </div>
             </div>
             
             <div class="form-group">
@@ -146,8 +150,7 @@
               </select>
             </div>
             
-            <div class="form-group">
-              <label for="custom-category">Categoria Personalizada</label>
+            <div class="form-group" id="custom-category-input-container" style="display: none;"> <label for="custom-category">Categoria Personalizada</label>
               <input type="text" id="custom-category" placeholder="Digite a categoria personalizada">
             </div>
             
@@ -238,7 +241,7 @@
         
         <div class="form-group checkbox">
           <input type="checkbox" id="setting-undo" checked>
-          <label for="setting-undo">Habilitar desfazer (Ctrl+Z)</label>
+          <label for="setting-undo">Habilitar desfazer (Ctrl+Z ou Backspace)</label>
         </div>
         
         <div class="form-group">
@@ -363,8 +366,12 @@
           </div>
           
           <div class="form-group">
-            <label for="rule-expansion">Expansão</label>
-            <input type="text" id="rule-expansion" placeholder="Texto expandido para esta regra" required>
+            <label for="rule-expansion">Expansão da Regra</label>
+            <textarea id="rule-expansion" placeholder="Texto expandido para esta regra" required rows="3"></textarea>
+            <div class="action-buttons-container">
+                <button type="button" class="btn-insert-action" data-action="$cursor$" title="Inserir marcador de cursor">$cursor$</button>
+                <button type="button" class="btn-insert-action" data-action="$transferencia$" title="Inserir conteúdo da área de transferência">$transferencia$</button>
+            </div>
           </div>
           
           <div class="form-group">
