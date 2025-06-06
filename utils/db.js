@@ -285,26 +285,33 @@
             request.onerror = () => rej(new Error('Failed to get rules'));
           })
         ]).then(([abbreviations, rules]) => {
-          // Anexa as regras a suas abreviações correspondentes
-          abbreviations.forEach(abbr => {
-            // Filtrar e validar regras ao anexar
-            abbr.rules = rules.filter(rule => rule.abbreviationId === abbr.abbreviation)
-                              .map(rule => {
-                                  try {
-                                      // Retornamos a regra validada, ou a original se a validação falhar (com aviso)
-                                      return RuleModel.validate(rule);
-                                  } catch (e) {
-                                      console.warn(`[IndexedDB] Rule validation failed for rule ID ${rule.id} (abbr: ${rule.abbreviationId}): ${e.message}. Skipping or using raw rule.`, rule);
-                                      return rule; // Retorna a regra bruta se a validação falhar com aviso
-                                  }
-                              });
+          console.log('[DB DEBUG] Abreviações brutas do DB:', abbreviations);
+          console.log('[DB DEBUG] Regras brutas do DB:', rules);
+
+          const abbreviationsWithRules = abbreviations.map(abbr => {
+            // CRIAR UM NOVO OBJETO para garantir que a propriedade 'rules' seja anexada corretamente e seja enumerável.
+            // Isso evita problemas de serialização/desserialização entre contextos.
+            const newAbbr = { ...abbr }; 
+
+            newAbbr.rules = rules.filter(rule => rule.abbreviationId === newAbbr.abbreviation)
+                                   .map(rule => {
+                                       try {
+                                           return RuleModel.validate(rule);
+                                       } catch (e) {
+                                           console.warn(`[IndexedDB] Rule validation failed for rule ID ${rule.id} (abbr: ${rule.abbreviationId}) during getAllAbbreviations: ${e.message}. Retornando regra bruta para inspeção.`, rule);
+                                           return rule; // Retorna a regra bruta se a validação falhar com aviso
+                                       }
+                                   });
+            return newAbbr;
           });
-          // Retorna apenas abreviações válidas (opcional, dependendo da necessidade de dados corrompidos)
-          const validAbbreviations = abbreviations.map(abbr => {
+
+          // Filtrar para validação final (se alguma propriedade de nível superior for inválida)
+          const finalValidatedAbbreviations = abbreviationsWithRules.map(abbr => {
               try {
-                  // A validação aqui é mais para garantir a estrutura mínima.
-                  // Campos que podem ser adicionados dinamicamente (como rules) devem ser tratados.
-                  const validatedAbbr = { // Cria um novo objeto para não ter 'rules' do schema
+                  // Validar a abreviação completa, incluindo as regras anexadas
+                  // AbbreviationModel.validate não espera a propriedade 'rules' no schema principal,
+                  // então vamos criar um objeto apenas com as propriedades que ele valida.
+                  const abbrDataForValidation = { 
                       abbreviation: abbr.abbreviation,
                       expansion: abbr.expansion,
                       category: abbr.category,
@@ -313,15 +320,22 @@
                       createdAt: abbr.createdAt,
                       lastUsed: abbr.lastUsed,
                       usageCount: abbr.usageCount
+                      // Não inclua 'rules' aqui se o AbbreviationModel.validate original não espera
                   };
-                  return AbbreviationModel.validate(validatedAbbr); // Valida apenas os campos do schema base
+                  const validatedTopLevel = AbbreviationModel.validate(abbrDataForValidation);
+                  
+                  // Reconstruir o objeto validado com as regras
+                  return { ...validatedTopLevel, rules: abbr.rules };
+
               } catch (e) {
-                  console.warn(`[IndexedDB] Abbreviation validation failed for key ${abbr.abbreviation}: ${e.message}. Skipping or using raw abbreviation.`, abbr);
-                  return null; // Marca como inválido
+                  console.warn(`[IndexedDB] Abbreviation validation failed for key ${abbr.abbreviation} during final validation: ${e.message}. Pulando ou usando abreviação bruta.`, abbr);
+                  return null;
               }
           }).filter(Boolean); // Remove nulos
 
-          resolve(validAbbreviations);
+          console.log('[DB DEBUG] Abreviações validadas com regras anexadas (resultado final para envio):', finalValidatedAbbreviations);
+
+          resolve(finalValidatedAbbreviations);
         }).catch(reject);
       });
     },
@@ -449,7 +463,7 @@
         // Remove 'id' se estiver presente, pois será auto-incrementado
         delete validatedRule.id;
       } catch (error) {
-        console.error('Rule validation failed:', error);
+        console.error('Rule validation failed (add):', error); // Log mais específico
         throw error;
       }
 
@@ -481,7 +495,7 @@
         }
         validatedRule = RuleModel.validate(rule);
       } catch (error) {
-        console.error('Rule validation failed during update:', error);
+        console.error('Rule validation failed (update):', error); // Log mais específico
         throw error;
       }
 
@@ -706,4 +720,4 @@
         });
     }
   };
-})(self || window); // Passa 'self' para Service Worker, 'window' para outros contextos
+})(self || window);
