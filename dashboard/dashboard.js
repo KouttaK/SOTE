@@ -11,8 +11,8 @@ const categoryList = document.getElementById('category-list');
 
 // Content
 const searchInput = document.getElementById('search-input');
-const abbreviationsListElement = document.getElementById('abbreviations-list'); // Renomeado para evitar conflito
-const addBtn = document.getElementById('add-btn'); 
+const abbreviationsListElement = document.getElementById('abbreviations-list'); // Renomeado
+const addBtn = document.getElementById('add-btn');
 
 // Modal (Principal para adicionar/editar abreviações)
 const modalContainer = document.getElementById('modal-container');
@@ -21,14 +21,13 @@ const modalClose = document.getElementById('modal-close');
 const modalCancel = document.getElementById('modal-cancel');
 const modalSave = document.getElementById('modal-save');
 const abbreviationInput = document.getElementById('abbreviation');
-const expansionTextarea = document.getElementById('expansion'); // Alterado
+const expansionTextarea = document.getElementById('expansion');
 const categorySelect = document.getElementById('category');
-const customCategoryInputContainer = document.getElementById('custom-category-input-container'); // Container
+const customCategoryInputContainer = document.getElementById('custom-category-input-container');
 const customCategoryInput = document.getElementById('custom-category');
 const caseSensitiveCheckbox = document.getElementById('case-sensitive');
 const enabledCheckbox = document.getElementById('enabled');
-const mainModalInsertActionButtons = document.querySelectorAll('#modal-container .action-buttons-container .btn-insert-action');
-
+const mainModalInsertActionButtons = document.querySelectorAll('#modal-container .btn-insert-action');
 
 // Import/Export
 const importBtn = document.getElementById('import-btn');
@@ -55,10 +54,10 @@ const clearDataBtn = document.getElementById('clear-data-btn');
 // Rules Modal Elements
 const rulesModalContainer = document.getElementById('rules-modal');
 const rulesModalTitle = document.getElementById('rules-modal-title');
-const rulesModalCloseBtn = document.getElementById('rules-modal-close'); // Renomeado
-const rulesListDisplayElement = document.getElementById('rules-list'); // Renomeado
-const addRuleBtn = document.getElementById('add-rule-btn'); 
-const ruleForm = document.getElementById('rule-form'); 
+const rulesModalCloseBtn = document.getElementById('rules-modal-close');
+const rulesListDisplayElement = document.getElementById('rules-list');
+const addRuleBtn = document.getElementById('add-rule-btn');
+const ruleForm = document.getElementById('rule-form');
 const ruleTypeSelect = document.getElementById('rule-type');
 const daysSection = document.getElementById('days-section');
 const dayCheckboxes = daysSection.querySelectorAll('input[type="checkbox"]');
@@ -69,15 +68,14 @@ const startMinuteInput = document.getElementById('start-minute');
 const endMinuteInput = document.getElementById('end-minute');
 const domainSection = document.getElementById('domain-section');
 const domainsTextarea = document.getElementById('domains');
-const ruleExpansionTextarea = document.getElementById('rule-expansion'); // Alterado
+const ruleExpansionTextarea = document.getElementById('rule-expansion');
 const rulePriorityInput = document.getElementById('rule-priority');
-const rulesModalCancelBtn = document.getElementById('rules-modal-cancel'); 
-const rulesModalSaveBtn = document.getElementById('rules-modal-save'); 
+const rulesModalCancelBtn = document.getElementById('rules-modal-cancel');
+const rulesModalSaveBtn = document.getElementById('rules-modal-save');
 const specialDateSection = document.getElementById('special-date-section');
 const specialMonthInput = document.getElementById('special-month');
 const specialDayInput = document.getElementById('special-day');
-const rulesModalInsertActionButtons = document.querySelectorAll('#rules-modal .action-buttons-container .btn-insert-action');
-
+const rulesModalInsertActionButtons = document.querySelectorAll('#rules-modal .btn-insert-action');
 
 const combinedRuleSection = document.getElementById('combined-rule-section');
 const combinedOperatorSelect = document.getElementById('combined-operator');
@@ -85,6 +83,7 @@ const subConditionsList = document.getElementById('sub-conditions-list');
 const addSubConditionBtn = document.getElementById('add-sub-condition-btn');
 const subConditionTemplate = document.getElementById('sub-condition-template');
 
+// Mapeamento para tradução dos tipos de regra
 const ruleTypeTranslations = {
   dayOfWeek: 'Dia da Semana',
   timeRange: 'Intervalo de Horário',
@@ -93,6 +92,9 @@ const ruleTypeTranslations = {
   combined: 'Combinada'
 };
 
+/**
+ * State
+ */
 let abbreviations = [];
 let filteredAbbreviations = [];
 let currentCategory = 'all';
@@ -105,6 +107,19 @@ let isEnabled = true;
 let initialLoadDoneBySeedMessage = false;
 let currentAbbreviationIdForRules = null;
 let currentEditingRuleId = null;
+
+/**
+ * Replaces action placeholders with user-friendly descriptions for display.
+ * @param {string} text The raw expansion text.
+ * @returns {string} The formatted text.
+ */
+function formatExpansionForDisplay(text) {
+  if (typeof text !== 'string') return '';
+  return text
+      .replace(/\$cursor\$/g, '[posição do cursor]')
+      .replace(/\$transferencia\$/g, '[área de transferência]');
+}
+
 
 /**
  * Inserts text at the current cursor position in a textarea.
@@ -125,6 +140,9 @@ function insertTextAtCursor(textarea, textToInsert) {
   textarea.focus();
 }
 
+/**
+ * Performs a local refresh of the dashboard's main data views.
+ */
 async function performLocalRefresh() {
   await loadAbbreviationsAndRender();
   await loadCategories();
@@ -153,6 +171,9 @@ async function loadAbbreviationsAndRender() {
   }
 }
 
+/**
+ * Initialize the dashboard
+ */
 async function init() {
   if (!window.TextExpanderDB || typeof window.TextExpanderDB.getAllAbbreviations !== 'function') {
     console.error("TextExpanderDB não foi inicializado corretamente para dashboard.js.");
@@ -186,7 +207,6 @@ async function init() {
       });
   });
 
-
   document.querySelectorAll('.abbreviations-table th.sortable').forEach(header => {
     header.addEventListener('click', () => {
       const column = header.getAttribute('data-sort');
@@ -215,6 +235,7 @@ async function init() {
   settingsModalSave.addEventListener('click', handleSaveSettings);
   clearDataBtn.addEventListener('click', handleClearData);
 
+  // Rules Modal Listeners
   rulesModalCloseBtn.addEventListener('click', hideRulesModal);
   rulesModalCancelBtn.addEventListener('click', () => {
     if (!ruleForm.classList.contains('hidden')) {
@@ -270,7 +291,7 @@ async function init() {
         console.error("Erro durante o performLocalRefresh acionado por mensagem:", error);
       });
     }
-    return true; 
+    return true;
   });
   await performLocalRefresh();
 }
@@ -292,6 +313,7 @@ async function loadAbbreviations() {
 async function loadCategories() {
   try {
     const categories = await window.TextExpanderDB.getAllCategories();
+
     const allCategoryItem = categoryList.querySelector('[data-category="all"]');
     categoryList.innerHTML = '';
     if (allCategoryItem) categoryList.appendChild(allCategoryItem);
@@ -324,14 +346,15 @@ async function loadCategories() {
         currentCategoryOptions.add(category);
       }
     });
+
     customCategoryInputContainer.style.display = (categorySelect.value === 'Personalizada') ? 'block' : 'none';
   } catch (error) {
     console.error('Erro ao carregar categorias:', error);
   }
 }
-
 function filterAbbreviations() {
   const searchTerm = searchInput.value.trim().toLowerCase();
+
   filteredAbbreviations = abbreviations.filter(abbr => {
     const categoryMatch = currentCategory === 'all' || abbr.category === currentCategory;
     const searchMatch = searchTerm === '' ||
@@ -340,12 +363,14 @@ function filterAbbreviations() {
                        (abbr.category && abbr.category.toLowerCase().includes(searchTerm));
     return categoryMatch && searchMatch;
   });
+
   sortAbbreviations();
   renderAbbreviations();
 }
 
 function sortAbbreviations() {
   const { column, direction } = currentSort;
+
   filteredAbbreviations.sort((a, b) => {
     let valueA = a[column];
     let valueB = b[column];
@@ -368,7 +393,12 @@ function sortAbbreviations() {
     if (valueA === valueB) {
       return a.abbreviation.toLowerCase().localeCompare(b.abbreviation.toLowerCase());
     }
-    return direction === 'asc' ? (valueA < valueB ? -1 : 1) : (valueA > valueB ? -1 : 1);
+
+    if (direction === 'asc') {
+      return valueA < valueB ? -1 : 1;
+    } else {
+      return valueA > valueB ? -1 : 1;
+    }
   });
 }
 
@@ -391,6 +421,7 @@ function renderAbbreviations() {
   }
 
   abbreviationsListElement.innerHTML = '';
+
   filteredAbbreviations.forEach(abbr => {
     const row = document.createElement('tr');
     let lastUsedText = 'Sem uso';
@@ -398,14 +429,18 @@ function renderAbbreviations() {
       try {
         const date = new Date(abbr.lastUsed);
         lastUsedText = date.toLocaleString('pt-BR');
-      } catch (e) { lastUsedText = abbr.lastUsed; }
+      } catch (e) {
+        lastUsedText = abbr.lastUsed;
+      }
     }
     
-    const expansionDisplay = abbr.expansion.length > 50 ? abbr.expansion.substring(0, 47) + '...' : abbr.expansion;
+    // Formata a expansão para exibição amigável
+    const formattedExpansion = formatExpansionForDisplay(abbr.expansion);
+    const expansionDisplay = formattedExpansion.length > 50 ? formattedExpansion.substring(0, 47) + '...' : formattedExpansion;
 
     row.innerHTML = `
       <td>${abbr.abbreviation}</td>
-      <td title="${abbr.expansion}">${expansionDisplay}</td>
+      <td title="${formattedExpansion}">${expansionDisplay}</td>
       <td><span class="category-badge">${abbr.category || 'Sem categoria'}</span></td>
       <td>${abbr.usageCount || 0}</td>
       <td>${lastUsedText}</td>
@@ -413,20 +448,39 @@ function renderAbbreviations() {
       <td>
         <div class="table-actions">
           <button class="action-btn edit" data-id="${abbr.abbreviation}" title="Editar Abreviação">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 20h9"></path>
+              <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+            </svg>
           </button>
           <button class="action-btn rules" data-id="${abbr.abbreviation}" title="Gerenciar Regras">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 14c.2-1 .7-1.7 1.5-2.5C17.3 10.7 18 9.8 18 9c0-.8-.3-1.6-.8-2.3-.5-.7-1.1-1.2-1.9-1.5C14.5 4.8 13.3 5 12.4 5.5c-.8.5-1.4 1.2-1.8 2.1-.4.9-.4 2.1.1 3.1.5.9 1.2 1.6 2 2.1.2.2.4.3.6.4V14z"></path><path d="M9 18c-4.51 2-5-2-7-2"></path><path d="M14 22c-4.51 2-5-2-7-2"></path><path d="M22 18h-2c-1.33 0-2.67.33-3.8.66"></path><path d="M20 22h-2c-1.33 0-2.67.33-3.8.66"></path></svg>
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M15 14c.2-1 .7-1.7 1.5-2.5C17.3 10.7 18 9.8 18 9c0-.8-.3-1.6-.8-2.3-.5-.7-1.1-1.2-1.9-1.5C14.5 4.8 13.3 5 12.4 5.5c-.8.5-1.4 1.2-1.8 2.1-.4.9-.4 2.1.1 3.1.5.9 1.2 1.6 2 2.1.2.2.4.3.6.4V14z"></path>
+              <path d="M9 18c-4.51 2-5-2-7-2"></path>
+              <path d="M14 22c-4.51 2-5-2-7-2"></path>
+              <path d="M22 18h-2c-1.33 0-2.67.33-3.8.66"></path>
+              <path d="M20 22h-2c-1.33 0-2.67.33-3.8.66"></path>
+            </svg>
           </button>
           <button class="action-btn delete" data-id="${abbr.abbreviation}" title="Excluir Abreviação">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path></svg>
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 6h18"></path>
+              <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
+              <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
+            </svg>
           </button>
         </div>
       </td>
     `;
-    row.querySelector('.edit').addEventListener('click', () => handleEditAbbreviation(abbr));
-    row.querySelector('.delete').addEventListener('click', () => handleDeleteAbbreviation(abbr.abbreviation));
-    row.querySelector('.rules').addEventListener('click', () => showRulesModal(abbr.abbreviation));
+
+    const editBtnElement = row.querySelector('.edit');
+    const deleteBtnElement = row.querySelector('.delete');
+    const rulesBtnElement = row.querySelector('.rules');
+
+    editBtnElement.addEventListener('click', () => handleEditAbbreviation(abbr));
+    deleteBtnElement.addEventListener('click', () => handleDeleteAbbreviation(abbr.abbreviation));
+    rulesBtnElement.addEventListener('click', () => showRulesModal(abbr.abbreviation));
+
     abbreviationsListElement.appendChild(row);
   });
 
@@ -439,12 +493,17 @@ function renderAbbreviations() {
   });
 }
 
-function handleSearch() { filterAbbreviations(); }
+function handleSearch() {
+  filterAbbreviations();
+}
+
 function handleCategoryFilter(category) {
   currentCategory = category;
   document.querySelectorAll('.category-item').forEach(item => {
     item.classList.remove('active');
-    if (item.getAttribute('data-category') === category) item.classList.add('active');
+    if (item.getAttribute('data-category') === category) {
+      item.classList.add('active');
+    }
   });
   filterAbbreviations();
 }
@@ -466,8 +525,10 @@ function handleToggleEnabled() {
   chrome.tabs.query({}, (tabs) => {
     tabs.forEach(tab => {
       if (tab.id) {
-        chrome.tabs.sendMessage(tab.id, { type: 'TOGGLE_ENABLED', enabled: isEnabled })
-          .catch(err => {}); 
+        chrome.tabs.sendMessage(tab.id, {
+          type: 'TOGGLE_ENABLED',
+          enabled: isEnabled
+        }).catch(err => { /* Ignora erro "no receiving end" */ });
       }
     });
   });
@@ -475,11 +536,12 @@ function handleToggleEnabled() {
 
 function showModal(abbr = null) {
   modalContainer.classList.remove('hidden');
+
   if (abbr) {
     modalTitle.textContent = 'Editar Abreviação';
     abbreviationInput.value = abbr.abbreviation;
     abbreviationInput.readOnly = true;
-    expansionTextarea.value = abbr.expansion; // Para textarea
+    expansionTextarea.value = abbr.expansion;
     caseSensitiveCheckbox.checked = abbr.caseSensitive || false;
     enabledCheckbox.checked = abbr.enabled !== false;
     currentEditId = abbr.abbreviation;
@@ -492,8 +554,11 @@ function showModal(abbr = null) {
           tempOption.value = abbr.category;
           tempOption.textContent = abbr.category;
           const personalizadaOpt = categorySelect.querySelector('option[value="Personalizada"]');
-          if (personalizadaOpt) categorySelect.insertBefore(tempOption, personalizadaOpt);
-          else categorySelect.appendChild(tempOption);
+          if (personalizadaOpt) {
+              categorySelect.insertBefore(tempOption, personalizadaOpt);
+          } else {
+              categorySelect.appendChild(tempOption);
+          }
       }
       categorySelect.value = abbr.category;
       customCategoryInputContainer.style.display = 'none';
@@ -515,7 +580,7 @@ function showModal(abbr = null) {
     modalTitle.textContent = 'Adicionar Nova Abreviação';
     abbreviationInput.value = '';
     abbreviationInput.readOnly = false;
-    expansionTextarea.value = ''; // Para textarea
+    expansionTextarea.value = '';
     categorySelect.value = 'Comum';
     caseSensitiveCheckbox.checked = false;
     enabledCheckbox.checked = true;
@@ -533,7 +598,7 @@ function hideModal() {
 
 async function handleSaveAbbreviation() {
   const abbreviationVal = abbreviationInput.value.trim();
-  const expansionVal = expansionTextarea.value.trim(); // De textarea
+  const expansionVal = expansionTextarea.value.trim();
   let categoryVal = categorySelect.value;
   const caseSensitiveVal = caseSensitiveCheckbox.checked;
   const enabledVal = enabledCheckbox.checked;
@@ -555,9 +620,13 @@ async function handleSaveAbbreviation() {
 
   try {
     const abbrData = {
-      abbreviation: abbreviationVal, expansion: expansionVal, category: categoryVal,
-      caseSensitive: caseSensitiveVal, enabled: enabledVal
+      abbreviation: abbreviationVal,
+      expansion: expansionVal,
+      category: categoryVal,
+      caseSensitive: caseSensitiveVal,
+      enabled: enabledVal
     };
+
     let operationSuccess = false;
     if (currentEditId) {
       const existingAbbr = abbreviations.find(a => a.abbreviation === currentEditId);
@@ -582,6 +651,7 @@ async function handleSaveAbbreviation() {
         operationSuccess = true;
       }
     }
+
     if (operationSuccess) {
         hideModal();
         await performLocalRefresh();
@@ -596,15 +666,18 @@ async function handleSaveAbbreviation() {
   }
 }
 
-function handleEditAbbreviation(abbr) { showModal(abbr); }
-
+function handleEditAbbreviation(abbr) {
+  showModal(abbr);
+}
 async function handleDeleteAbbreviation(abbreviationKey) {
   if (confirm(`Tem certeza que deseja excluir a abreviação "${abbreviationKey}" e todas as suas regras associadas?`)) {
     try {
       const abbrToDelete = abbreviations.find(a => a.abbreviation === abbreviationKey);
       if (abbrToDelete && abbrToDelete.rules && abbrToDelete.rules.length > 0) {
         for (const rule of abbrToDelete.rules) {
-          if (rule.id !== undefined) await window.TextExpanderDB.deleteExpansionRule(rule.id);
+          if (rule.id !== undefined) {
+            await window.TextExpanderDB.deleteExpansionRule(rule.id);
+          }
         }
       }
       await window.TextExpanderDB.deleteAbbreviation(abbreviationKey);
@@ -637,7 +710,7 @@ function hideRulesModal() {
 
 function loadAndDisplayRules(abbreviationId) {
   const abbreviation = abbreviations.find(abbr => abbr.abbreviation === abbreviationId);
-  rulesListDisplayElement.innerHTML = ''; // Usando a variável renomeada
+  rulesListDisplayElement.innerHTML = '';
 
   if (!abbreviation || !abbreviation.rules || abbreviation.rules.length === 0) {
     rulesListDisplayElement.innerHTML = '<p>Nenhuma regra definida para esta abreviação.</p>';
@@ -645,6 +718,7 @@ function loadAndDisplayRules(abbreviationId) {
   }
 
   const sortedRules = [...abbreviation.rules].sort((a, b) => (b.priority || 0) - (a.priority || 0));
+
   sortedRules.forEach(rule => {
     const ruleItem = document.createElement('div');
     ruleItem.className = 'rule-item';
@@ -681,20 +755,31 @@ function loadAndDisplayRules(abbreviationId) {
         details = `Tipo: ${ruleTypeDisplay}`;
     }
 
+    const formattedRuleExpansion = formatExpansionForDisplay(rule.expansion);
+
     ruleItem.innerHTML = `
       <div class="rule-header">
         <span class="rule-type">Prioridade: ${rule.priority || 0} - ${ruleTypeDisplay}</span>
         <div class="rule-actions">
-          <button class="action-btn edit-rule" title="Editar Regra"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg></button>
-          <button class="action-btn delete-rule" title="Excluir Regra"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path></svg></button>
+          <button class="action-btn edit-rule" title="Editar Regra">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+          </button>
+          <button class="action-btn delete-rule" title="Excluir Regra">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path></svg>
+          </button>
         </div>
       </div>
       <div class="rule-details">${details}</div>
-      <div class="rule-expansion">Expansão: <strong>${rule.expansion}</strong></div>
+      <div class="rule-expansion">Expansão: <strong>${formattedRuleExpansion}</strong></div>
     `;
+
     rulesListDisplayElement.appendChild(ruleItem);
-    ruleItem.querySelector('.edit-rule').addEventListener('click', () => handleEditRule(rule));
-    ruleItem.querySelector('.delete-rule').addEventListener('click', () => handleDeleteRule(rule.id));
+
+    const editButton = ruleItem.querySelector('.edit-rule');
+    if (editButton) editButton.addEventListener('click', () => handleEditRule(rule));
+
+    const deleteButton = ruleItem.querySelector('.delete-rule');
+    if (deleteButton) deleteButton.addEventListener('click', () => handleDeleteRule(rule.id));
   });
 }
 
@@ -722,7 +807,7 @@ function handleShowRuleForm() {
   addRuleBtn.classList.add('hidden');
   ruleForm.querySelector('h3').textContent = 'Nova Regra de Expansão';
   handleRuleTypeChange();
-  ruleExpansionTextarea.focus(); // Para textarea
+  ruleExpansionTextarea.focus();
 }
 
 function resetRuleForm() {
@@ -736,7 +821,7 @@ function resetRuleForm() {
   specialMonthInput.value = '';
   specialDayInput.value = '';
   rulePriorityInput.value = 0;
-  ruleExpansionTextarea.value = ''; // Para textarea
+  ruleExpansionTextarea.value = '';
   subConditionsList.innerHTML = '';
   combinedOperatorSelect.value = 'AND';
   handleRuleTypeChange();
@@ -749,6 +834,7 @@ function handleRuleTypeChange() {
   domainSection.classList.toggle('hidden', type !== 'domain');
   specialDateSection.classList.toggle('hidden', type !== 'specialDate');
   combinedRuleSection.classList.toggle('hidden', type !== 'combined');
+
   if (type === 'combined' && subConditionsList.children.length === 0) {
     handleAddSubCondition(null);
   }
@@ -760,8 +846,9 @@ async function handleSaveRule() {
     alert("Erro: ID da abreviação não encontrado. Tente reabrir o modal de regras.");
     return;
   }
+
   const type = ruleTypeSelect.value;
-  const expansion = ruleExpansionTextarea.value.trim(); // De textarea
+  const expansion = ruleExpansionTextarea.value.trim();
   const priority = parseInt(rulePriorityInput.value, 10) || 0;
 
   if (!expansion) {
@@ -769,8 +856,17 @@ async function handleSaveRule() {
     ruleExpansionTextarea.focus();
     return;
   }
-  const ruleData = { abbreviationId: currentAbbreviationIdForRules, type, expansion, priority };
-  if (currentEditingRuleId !== null) ruleData.id = currentEditingRuleId;
+
+  const ruleData = {
+    abbreviationId: currentAbbreviationIdForRules,
+    type,
+    expansion,
+    priority,
+  };
+
+  if (currentEditingRuleId !== null) {
+    ruleData.id = currentEditingRuleId;
+  }
 
   switch (type) {
     case 'dayOfWeek':

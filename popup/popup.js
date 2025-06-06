@@ -9,10 +9,10 @@ const dashboardBtn = document.getElementById('dashboard-btn');
 const addForm = document.getElementById('add-form');
 const cancelBtn = document.getElementById('cancel-btn');
 const saveBtn = document.getElementById('save-btn');
-const newAbbreviationInput = document.getElementById('new-abbreviation'); // Renomeado para clareza
-const newExpansionTextarea = document.getElementById('new-expansion'); // Alterado para textarea
-const newCategorySelect = document.getElementById('new-category'); // Renomeado para clareza
-const newCaseSensitiveCheckbox = document.getElementById('new-case-sensitive'); // Renomeado para clareza
+const newAbbreviationInput = document.getElementById('new-abbreviation');
+const newExpansionTextarea = document.getElementById('new-expansion');
+const newCategorySelect = document.getElementById('new-category');
+const newCaseSensitiveCheckbox = document.getElementById('new-case-sensitive');
 const customCategoryGroup = document.getElementById('custom-category-group');
 const newCustomCategoryInput = document.getElementById('new-custom-category');
 const insertActionButtons = document.querySelectorAll('#add-form .btn-insert-action');
@@ -24,40 +24,35 @@ let currentEditId = null;
 let isEnabled = true;
 
 /**
- * Inserts text at the current cursor position in a textarea.
- * @param {HTMLTextAreaElement} textarea The textarea element.
- * @param {string} textToInsert The text to insert.
+ * Replaces action placeholders with user-friendly descriptions for display.
+ * @param {string} text The raw expansion text.
+ * @returns {string} The formatted text.
  */
-function insertTextAtCursor(textarea, textToInsert) {
-  if (!textarea) return;
-
-  const startPos = textarea.selectionStart;
-  const endPos = textarea.selectionEnd;
-  const scrollTop = textarea.scrollTop; // Salva a posição do scroll
-
-  textarea.value = textarea.value.substring(0, startPos) +
-                   textToInsert +
-                   textarea.value.substring(endPos, textarea.value.length);
-
-  textarea.selectionStart = startPos + textToInsert.length;
-  textarea.selectionEnd = startPos + textToInsert.length;
-  textarea.scrollTop = scrollTop; // Restaura a posição do scroll
-  textarea.focus();
+function formatExpansionForDisplay(text) {
+  if (typeof text !== 'string') return '';
+  return text
+      .replace(/\$cursor\$/g, '[posição do cursor]')
+      .replace(/\$transferencia\$/g, '[área de transferência]');
 }
 
 
-/**
- * Performs a local refresh of the popup's data views.
- */
+function insertTextAtCursor(textarea, textToInsert) {
+  if (!textarea) return;
+  const startPos = textarea.selectionStart;
+  const endPos = textarea.selectionEnd;
+  const scrollTop = textarea.scrollTop;
+  textarea.value = textarea.value.substring(0, startPos) + textToInsert + textarea.value.substring(endPos, textarea.value.length);
+  textarea.selectionStart = startPos + textToInsert.length;
+  textarea.selectionEnd = startPos + textToInsert.length;
+  textarea.scrollTop = scrollTop;
+  textarea.focus();
+}
+
 async function performLocalRefreshPopup() {
   await loadAbbreviations();
   await loadCategories(); 
 }
 
-
-/**
- * Initialize the popup
- */
 async function init() {
   if (!window.TextExpanderDB || typeof window.TextExpanderDB.getAllAbbreviations !== 'function') { 
     console.error("TextExpanderDB não foi inicializado corretamente.."); 
@@ -112,14 +107,10 @@ async function init() {
     if (message.type === 'ABBREVIATIONS_UPDATED' || message.type === 'INITIAL_SEED_COMPLETE') {
       performLocalRefreshPopup();
     }
-    return true; // Necessário para sendResponse assíncrono, embora não usado aqui.
+    return true;
   });
 }
 
-
-/**
- * Load abbreviations from the database
- */
 async function loadAbbreviations() {
   try {
     abbreviations = await window.TextExpanderDB.getAllAbbreviations();
@@ -134,13 +125,9 @@ async function loadAbbreviations() {
   }
 }
 
-/**
- * Load categories from the database and update the dropdown
- */
 async function loadCategories() {
   try {
     const categories = await window.TextExpanderDB.getAllCategories(); 
-    
     const standardValues = ['Comum', 'Pessoal', 'Trabalho', 'Personalizada'];
     const currentOptions = Array.from(newCategorySelect.options).map(opt => opt.value);
     
@@ -170,10 +157,6 @@ async function loadCategories() {
   }
 }
 
-
-/**
- * Render abbreviations in the list
- */
 function renderAbbreviations() {
   if (filteredAbbreviations.length === 0 && abbreviations.length > 0 && searchInput.value.trim() !== '') {
     abbreviationsList.innerHTML = `
@@ -197,7 +180,6 @@ function renderAbbreviations() {
   const sortedForDisplay = [...filteredAbbreviations].sort((a, b) => {
     const lastUsedA = a.lastUsed ? new Date(a.lastUsed).getTime() : 0;
     const lastUsedB = b.lastUsed ? new Date(b.lastUsed).getTime() : 0;
-
     if (lastUsedA !== lastUsedB) {
       return lastUsedB - lastUsedA; 
     }
@@ -208,12 +190,14 @@ function renderAbbreviations() {
     const item = document.createElement('div');
     item.className = 'abbreviation-item';
     
-    const expansionDisplay = abbr.expansion.length > 30 ? abbr.expansion.substring(0, 27) + '...' : abbr.expansion;
+    // Formata a expansão para exibição amigável
+    const formattedExpansion = formatExpansionForDisplay(abbr.expansion);
+    const expansionDisplay = formattedExpansion.length > 30 ? formattedExpansion.substring(0, 27) + '...' : formattedExpansion;
 
     item.innerHTML = `
       <div class="abbreviation-details">
         <span class="abbreviation-text">${abbr.abbreviation}</span>
-        <span class="expansion-text" title="${abbr.expansion}">${expansionDisplay}</span>
+        <span class="expansion-text" title="${formattedExpansion}">${expansionDisplay}</span>
         <span class="category-badge">${abbr.category || 'Sem Categoria'}</span>
       </div>
       <div class="item-actions">
@@ -258,23 +242,17 @@ function filterAbbreviations() {
   renderAbbreviations();
 }
 
-function handleSearch() {
-  filterAbbreviations();
-}
+function handleSearch() { filterAbbreviations(); }
 
 function handleToggleEnabled() {
   isEnabled = enabledToggle.checked;
   statusText.textContent = isEnabled ? 'Habilitado' : 'Desabilitado';
-  
   chrome.storage.sync.set({ enabled: isEnabled });
-  
   chrome.tabs.query({}, (tabs) => {
     tabs.forEach(tab => {
       if (tab.id) { 
-        chrome.tabs.sendMessage(tab.id, { 
-          type: 'TOGGLE_ENABLED', 
-          enabled: isEnabled 
-        }).catch(err => { /* Ignorar erro "no receiving end" */ });
+        chrome.tabs.sendMessage(tab.id, { type: 'TOGGLE_ENABLED', enabled: isEnabled })
+          .catch(err => {});
       }
     });
   });
@@ -282,7 +260,6 @@ function handleToggleEnabled() {
 
 function showAddForm() {
   addForm.classList.remove('hidden'); 
-  
   if (!currentEditId) { 
     newAbbreviationInput.value = ''; 
     newAbbreviationInput.readOnly = false;
@@ -293,13 +270,10 @@ function showAddForm() {
   } else { 
     newAbbreviationInput.readOnly = true; 
   }
-
-  if (newCategorySelect) {
-    if (newCategorySelect.value === 'Personalizada') {
-      if (customCategoryGroup) customCategoryGroup.style.display = 'block';
-    } else {
-      if (customCategoryGroup) customCategoryGroup.style.display = 'none';
-    }
+  if (newCategorySelect.value === 'Personalizada') {
+    if (customCategoryGroup) customCategoryGroup.style.display = 'block';
+  } else {
+    if (customCategoryGroup) customCategoryGroup.style.display = 'none';
   }
   newAbbreviationInput.focus(); 
 }
@@ -313,15 +287,13 @@ function hideAddForm() {
 }
 
 function openDashboard() {
-  chrome.tabs.create({
-    url: chrome.runtime.getURL('dashboard/dashboard.html')
-  });
+  chrome.tabs.create({ url: chrome.runtime.getURL('dashboard/dashboard.html') });
   window.close(); 
 }
 
 async function handleSaveAbbreviation() {
   const abbreviation = newAbbreviationInput.value.trim(); 
-  const expansion = newExpansionTextarea.value.trim(); // De textarea agora
+  const expansion = newExpansionTextarea.value.trim();
   let category = newCategorySelect.value; 
   const caseSensitive = newCaseSensitiveCheckbox.checked; 
   
@@ -342,14 +314,8 @@ async function handleSaveAbbreviation() {
   
   try {
     let abbrData = {
-      abbreviation,
-      expansion,
-      category, 
-      caseSensitive,
-      enabled: true, 
-      rules: [], 
+      abbreviation, expansion, category, caseSensitive, enabled: true, rules: [], 
     };
-    
     if (currentEditId) { 
       const existingAbbr = abbreviations.find(a => a.abbreviation === currentEditId); 
       if (existingAbbr) { 
@@ -366,7 +332,6 @@ async function handleSaveAbbreviation() {
       abbrData.usageCount = 0;
       await window.TextExpanderDB.addAbbreviation(abbrData); 
     }
-    
     await performLocalRefreshPopup();
     hideAddForm(); 
   } catch (error) {
@@ -382,7 +347,7 @@ async function handleSaveAbbreviation() {
 function handleEditAbbreviation(abbr) { 
   currentEditId = abbr.abbreviation; 
   newAbbreviationInput.value = abbr.abbreviation; 
-  newExpansionTextarea.value = abbr.expansion; // Para textarea
+  newExpansionTextarea.value = abbr.expansion;
   newCaseSensitiveCheckbox.checked = abbr.caseSensitive || false; 
 
   const standardCategories = ['Comum', 'Pessoal', 'Trabalho', 'Personalizada'];
@@ -415,7 +380,6 @@ function handleEditAbbreviation(abbr) {
       if (customCategoryGroup) customCategoryGroup.style.display = 'none';
       if (newCustomCategoryInput) newCustomCategoryInput.value = '';
   }
-  
   showAddForm(); 
 }
 
