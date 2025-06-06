@@ -34,6 +34,13 @@
     }
   ],
   "background": {
-    "service_worker": "background/service-worker.js"
-  }
+    "service_worker": "background/service-worker.js",
+    "type": "module"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["utils/db.js", "utils/expansion.js"],
+      "matches": ["<all_urls>"]
+    }
+  ]
 }

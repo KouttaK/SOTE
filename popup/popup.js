@@ -54,9 +54,10 @@ async function performLocalRefreshPopup() {
 }
 
 async function init() {
-  if (!window.TextExpanderDB || typeof window.TextExpanderDB.getAllAbbreviations !== 'function') { 
-    console.error("TextExpanderDB não foi inicializado corretamente.."); 
-    abbreviationsList.innerHTML = `<div class="empty-state"><p>Erro ao inicializar. Verifique o console.</p></div>`; 
+  // Verifica se a dependência TextExpanderDB está disponível
+  if (typeof window.TextExpanderDB === 'undefined' || typeof window.TextExpanderDB.getAllAbbreviations !== 'function') { 
+    console.error("TextExpanderDB não foi inicializado corretamente para popup.js. Verifique a ordem dos scripts no HTML."); 
+    abbreviationsList.innerHTML = `<div class="empty-state"><p>Erro ao inicializar o banco de dados. Tente reabrir.</p></div>`; 
     return;
   }
 
@@ -113,8 +114,17 @@ async function init() {
 
 async function loadAbbreviations() {
   try {
-    abbreviations = await window.TextExpanderDB.getAllAbbreviations();
-    filterAbbreviations(); 
+    abbreviationsList.innerHTML = `<div class="loading">Carregando abreviações...</div>`;
+    // Assumimos que window.TextExpanderDB está carregado
+    const freshAbbreviations = await window.TextExpanderDB.getAllAbbreviations();
+    if (Array.isArray(freshAbbreviations)) { // Sempre verificar o tipo
+        abbreviations = freshAbbreviations;
+        filterAbbreviations(); 
+    } else {
+        console.error('TextExpanderDB.getAllAbbreviations did not return an array in popup.');
+        abbreviations = [];
+        abbreviationsList.innerHTML = `<div class="empty-state"><p>Erro no formato dos dados. Recarregue.</p></div>`;
+    }
   } catch (error) {
     console.error('Erro ao carregar abreviações:', error);
     abbreviationsList.innerHTML = `
@@ -317,19 +327,9 @@ async function handleSaveAbbreviation() {
       abbreviation, expansion, category, caseSensitive, enabled: true, rules: [], 
     };
     if (currentEditId) { 
-      const existingAbbr = abbreviations.find(a => a.abbreviation === currentEditId); 
-      if (existingAbbr) { 
-        abbrData.createdAt = existingAbbr.createdAt; 
-        abbrData.lastUsed = existingAbbr.lastUsed; 
-        abbrData.usageCount = existingAbbr.usageCount; 
-        abbrData.enabled = existingAbbr.enabled; 
-        abbrData.rules = existingAbbr.rules || []; 
-      }
+      // `updateAbbreviation` agora busca o item existente e mescla para preservar campos
       await window.TextExpanderDB.updateAbbreviation(abbrData); 
     } else {
-      abbrData.createdAt = new Date().toISOString(); 
-      abbrData.lastUsed = null; 
-      abbrData.usageCount = 0;
       await window.TextExpanderDB.addAbbreviation(abbrData); 
     }
     await performLocalRefreshPopup();
@@ -338,6 +338,8 @@ async function handleSaveAbbreviation() {
     console.error('Erro ao salvar abreviação:', error); 
     if (error.message && error.message.toLowerCase().includes('key already exists')) {
         alert('Erro ao salvar: A abreviação já existe.');
+    } else if (error.message && error.message.includes('Validation Error:')) {
+        alert(`Erro de validação: ${error.message}`);
     } else {
         alert('Erro ao salvar abreviação. Por favor, tente novamente.'); 
     }
@@ -386,7 +388,7 @@ function handleEditAbbreviation(abbr) {
 async function handleDeleteAbbreviation(abbreviationKey) {
   if (confirm(`Tem certeza que deseja excluir "${abbreviationKey}"? (As regras associadas não serão excluídas pelo popup)`)) {
     try {
-      await window.TextExpanderDB.deleteAbbreviation(abbreviationKey);
+      await window.TextExpanderDB.deleteAbbreviation(abbreviationKey); // deleteAbbreviation agora também remove regras associadas
       await performLocalRefreshPopup();
     } catch (error) {
       console.error('Erro ao excluir abreviação:', error);

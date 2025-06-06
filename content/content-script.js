@@ -19,14 +19,6 @@
     Enter: 'triggerEnter'
   };
 
-  // Character to insert for trigger keys is handled by the browser / OS default behavior or by $cursor$ action
-  // const TRIGGER_CHARS = {
-  //     triggerSpace: ' ',
-  //     triggerTab: '\t',
-  //     triggerEnter: '\n'
-  // };
-
-
   function loadSettings() {
     chrome.storage.sync.get(['triggerSpace', 'triggerTab', 'triggerEnter', 'enableUndo'], (result) => {
       settings.triggerSpace = result.triggerSpace !== false;
@@ -143,7 +135,7 @@
       }
 
       if (TextExpander.matchAbbreviation(word, abbr.abbreviation, abbr.caseSensitive)) {
-        event.preventDefault(); 
+        event.preventDefault(); // Impede a ação padrão da tecla (ex: o espaço não é inserido)
         let expanded = false;
         const rulesToPass = Array.isArray(abbr.rules) ? abbr.rules : [];
 
@@ -154,6 +146,40 @@
         }
 
         if (expanded) {
+          // Se a expansão foi bem-sucedida e a tecla gatilho foi o ESPAÇO,
+          // precisamos inseri-lo manualmente, pois o `preventDefault()` o impediu.
+          if (event.key === ' ' && settings.triggerSpace) { // Verifica se a tecla foi espaço e se o gatilho espaço está ativado
+              if (element.isContentEditable) {
+                  const selection = window.getSelection();
+                  if (selection.rangeCount > 0) {
+                      const range = selection.getRangeAt(0);
+                      const spaceNode = document.createTextNode(' ');
+                      // Insere o espaço na posição atual do cursor
+                      range.insertNode(spaceNode);
+                      // Move o cursor para depois do espaço inserido
+                      range.setStartAfter(spaceNode);
+                      range.collapse(true);
+                      selection.removeAllRanges();
+                      selection.addRange(range);
+                      // Dispara evento de 'input' para contenteditable para notificar alterações
+                      let editableElement = element;
+                      while(editableElement && !editableElement.isContentEditable) {
+                          editableElement = editableElement.parentNode;
+                      }
+                      if(editableElement && editableElement.isContentEditable) {
+                          editableElement.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
+                      }
+                  }
+              } else { // input ou textarea
+                  const currentPos = element.selectionStart;
+                  const valueBeforeCursor = element.value.substring(0, currentPos);
+                  const valueAfterCursor = element.value.substring(currentPos);
+                  element.value = valueBeforeCursor + ' ' + valueAfterCursor; // Insere o espaço
+                  element.setSelectionRange(currentPos + 1, currentPos + 1); // Move o cursor
+                  element.dispatchEvent(new Event('input', { bubbles: true })); // Dispara evento de 'input'
+              }
+          }
+
           if (chrome.runtime && chrome.runtime.sendMessage) {
             chrome.runtime.sendMessage({
               type: 'UPDATE_USAGE',
@@ -172,8 +198,6 @@
 
   function handleBackspaceUndo(event) {
     const element = event.target;
-    // A verificação de element._lastExpansion já está no chamador (handleKeyDown)
-    // mas uma dupla verificação não faz mal.
     if (!element || !element._lastExpansion) return;
 
     event.preventDefault(); 

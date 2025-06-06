@@ -1,7 +1,5 @@
 // SOTE-main/dashboard/dashboard.js
-const RULES_STORE = 'expansionRules';
-
-// DOM Elements
+// Elementos DOM
 // Header
 const enabledToggle = document.getElementById('enabled-toggle');
 const statusText = document.getElementById('status-text');
@@ -127,7 +125,10 @@ function formatExpansionForDisplay(text) {
  * @param {string} textToInsert The text to insert.
  */
 function insertTextAtCursor(textarea, textToInsert) {
-  if (!textarea) return;
+  if (!textarea || typeof textToInsert !== 'string') { // Verifica tipos
+      console.warn('insertTextAtCursor: Invalid textarea or text to insert.');
+      return;
+  }
   const startPos = textarea.selectionStart;
   const endPos = textarea.selectionEnd;
   const scrollTop = textarea.scrollTop;
@@ -158,9 +159,21 @@ async function loadAbbreviationsAndRender() {
         <td colspan="7" class="loading">Carregando abreviações...</td>
       </tr>
     `;
+    // Assumimos que window.TextExpanderDB está carregado
     const freshAbbreviations = await window.TextExpanderDB.getAllAbbreviations();
-    abbreviations = freshAbbreviations;
-    filterAbbreviations();
+    // Sempre verificar se o resultado é um array antes de atribuir
+    if (Array.isArray(freshAbbreviations)) {
+        abbreviations = freshAbbreviations;
+        filterAbbreviations();
+    } else {
+        console.error('TextExpanderDB.getAllAbbreviations did not return an array.');
+        abbreviations = []; // Define como array vazio para evitar erros
+        abbreviationsListElement.innerHTML = `
+            <tr>
+                <td colspan="7" class="loading">Formato de dados inesperado ao carregar.</td>
+            </tr>
+        `;
+    }
   } catch (error) {
     console.error('Erro ao carregar abreviações:', error);
     abbreviationsListElement.innerHTML = `
@@ -175,9 +188,10 @@ async function loadAbbreviationsAndRender() {
  * Initialize the dashboard
  */
 async function init() {
-  if (!window.TextExpanderDB || typeof window.TextExpanderDB.getAllAbbreviations !== 'function') {
-    console.error("TextExpanderDB não foi inicializado corretamente para dashboard.js.");
-    abbreviationsListElement.innerHTML = `<tr><td colspan="7" class="loading">Erro ao inicializar. Verifique o console.</td></tr>`;
+  // Verifica se a dependência TextExpanderDB está disponível
+  if (typeof window.TextExpanderDB === 'undefined' || typeof window.TextExpanderDB.getAllAbbreviations !== 'function') {
+    console.error("TextExpanderDB não foi inicializado corretamente para dashboard.js. Verifique a ordem dos scripts no HTML.");
+    abbreviationsListElement.innerHTML = `<tr><td colspan="7" class="loading">Erro ao inicializar o banco de dados. Verifique o console.</td></tr>`;
     return;
   }
 
@@ -629,27 +643,15 @@ async function handleSaveAbbreviation() {
 
     let operationSuccess = false;
     if (currentEditId) {
-      const existingAbbr = abbreviations.find(a => a.abbreviation === currentEditId);
-      if (existingAbbr) {
-        abbrData.createdAt = existingAbbr.createdAt;
-        abbrData.lastUsed = existingAbbr.lastUsed;
-        abbrData.usageCount = existingAbbr.usageCount;
-        abbrData.rules = existingAbbr.rules || [];
-      }
+      // Ao editar, o ID já existe e é a chave. Não precisamos buscar novamente.
+      // O `updateAbbreviation` em `db.js` agora busca o item existente e mescla.
        await window.TextExpanderDB.updateAbbreviation(abbrData);
        operationSuccess = true;
     } else {
-      abbrData.createdAt = new Date().toISOString();
-      abbrData.lastUsed = null;
-      abbrData.usageCount = 0;
-      abbrData.rules = [];
-      const existing = abbreviations.find(a => a.abbreviation.toLowerCase() === abbreviationVal.toLowerCase());
-      if (existing) {
-          alert(`A abreviação "${abbreviationVal}" já existe.`);
-      } else {
+      // Ao adicionar, a validação de unicidade de chave é feita pelo IndexedDB e `addAbbreviation`
+      // irá lançar erro se a chave já existir.
         await window.TextExpanderDB.addAbbreviation(abbrData);
         operationSuccess = true;
-      }
     }
 
     if (operationSuccess) {
@@ -658,9 +660,13 @@ async function handleSaveAbbreviation() {
     }
   } catch (error) {
     console.error('Erro ao salvar abreviação:', error);
+    // Verifique se o erro é de chave duplicada ou de validação
     if (error.message && error.message.toLowerCase().includes('key already exists')) {
         alert(`Erro: A abreviação "${abbreviationVal}" já existe.`);
-    } else {
+    } else if (error.message && error.message.includes('Validation Error:')) {
+        alert(`Erro de validação: ${error.message}`);
+    }
+    else {
         alert('Erro ao salvar abreviação. Por favor, tente novamente.');
     }
   }
@@ -672,14 +678,7 @@ function handleEditAbbreviation(abbr) {
 async function handleDeleteAbbreviation(abbreviationKey) {
   if (confirm(`Tem certeza que deseja excluir a abreviação "${abbreviationKey}" e todas as suas regras associadas?`)) {
     try {
-      const abbrToDelete = abbreviations.find(a => a.abbreviation === abbreviationKey);
-      if (abbrToDelete && abbrToDelete.rules && abbrToDelete.rules.length > 0) {
-        for (const rule of abbrToDelete.rules) {
-          if (rule.id !== undefined) {
-            await window.TextExpanderDB.deleteExpansionRule(rule.id);
-          }
-        }
-      }
+      // deleteAbbreviation agora também remove regras associadas
       await window.TextExpanderDB.deleteAbbreviation(abbreviationKey);
       await performLocalRefresh();
     } catch (error) {
@@ -752,6 +751,7 @@ function loadAndDisplayRules(abbreviationId) {
         details = `Combinada (${rule.logicalOperator === 'AND' ? 'E' : 'OU'}): ${subConditionsText}`;
         break;
       default:
+        console.warn('Tipo de regra desconhecido para exibição:', rule.type); // Adicionado log
         details = `Tipo: ${ruleTypeDisplay}`;
     }
 
@@ -868,85 +868,63 @@ async function handleSaveRule() {
     ruleData.id = currentEditingRuleId;
   }
 
+  // Coleta dados específicos do tipo de regra
   switch (type) {
     case 'dayOfWeek':
       ruleData.days = Array.from(dayCheckboxes).filter(cb => cb.checked).map(cb => parseInt(cb.value, 10));
-      if (ruleData.days.length === 0) { alert('Por favor, selecione pelo menos um dia da semana.'); return; }
       break;
     case 'timeRange':
-      const startHour = parseInt(startHourInput.value, 10);
-      const endHour = parseInt(endHourInput.value, 10);
-      const startMinute = parseInt(startMinuteInput.value, 10);
-      const endMinute = parseInt(endMinuteInput.value, 10);
-      if (isNaN(startHour) || isNaN(startMinute) || isNaN(endHour) || isNaN(endMinute) ||
-          startHour < 0 || startHour > 23 || startMinute < 0 || startMinute > 59 ||
-          endHour < 0 || endHour > 23 || endMinute < 0 || endMinute > 59) {
-        alert('Por favor, insira um horário HH:MM válido (Horas 0-23, Minutos 0-59).'); return;
-      }
-      ruleData.startHour = startHour; ruleData.endHour = endHour;
-      ruleData.startMinute = startMinute; ruleData.endMinute = endMinute;
+      ruleData.startHour = parseInt(startHourInput.value, 10);
+      ruleData.endHour = parseInt(endHourInput.value, 10);
+      ruleData.startMinute = parseInt(startMinuteInput.value, 10);
+      ruleData.endMinute = parseInt(endMinuteInput.value, 10);
       break;
     case 'domain':
       ruleData.domains = domainsTextarea.value.split('\n').map(d => d.trim()).filter(d => d.length > 0);
-      if (ruleData.domains.length === 0) { alert('Por favor, insira pelo menos um domínio.'); domainsTextarea.focus(); return; }
       break;
     case 'specialDate':
-      const month = parseInt(specialMonthInput.value, 10);
-      const day = parseInt(specialDayInput.value, 10);
-      if (isNaN(month) || month < 1 || month > 12 || isNaN(day) || day < 1 || day > 31) {
-        alert('Por favor, insira um Mês (1-12) e Dia (1-31) válidos para a Data Especial.'); return;
-      }
-      ruleData.month = month; ruleData.day = day;
+      ruleData.month = parseInt(specialMonthInput.value, 10);
+      ruleData.day = parseInt(specialDayInput.value, 10);
       break;
     case 'combined':
       ruleData.logicalOperator = combinedOperatorSelect.value;
       ruleData.subConditions = [];
       const subConditionElements = subConditionsList.querySelectorAll('.sub-condition-item');
-      if (subConditionElements.length === 0) { alert('Para regras combinadas, adicione pelo menos uma sub-condição.'); return; }
       for (const item of subConditionElements) {
         const subType = item.querySelector('.sub-condition-type').value;
         const subFieldsContainer = item.querySelector('.sub-condition-fields');
         const subNegated = item.querySelector('.sub-condition-negate').checked;
         const subCondData = { conditionType: subType, negated: subNegated };
+
         switch (subType) {
           case 'dayOfWeek':
             subCondData.days = Array.from(subFieldsContainer.querySelectorAll('input[type="checkbox"].sub-day:checked')).map(cb => parseInt(cb.value, 10));
-            if (subCondData.days.length === 0) { alert('Sub-condição "Dia da Semana" precisa de pelo menos um dia.'); return; }
             break;
           case 'timeRange':
-            const subStartHour = parseInt(subFieldsContainer.querySelector('.sub-start-hour').value, 10);
-            const subEndHour = parseInt(subFieldsContainer.querySelector('.sub-end-hour').value, 10);
-            const subStartMinute = parseInt(subFieldsContainer.querySelector('.sub-start-minute').value, 10);
-            const subEndMinute = parseInt(subFieldsContainer.querySelector('.sub-end-minute').value, 10);
-            if (isNaN(subStartHour) || isNaN(subStartMinute) || isNaN(subEndHour) || isNaN(subEndMinute) ||
-                subStartHour < 0 || subStartHour > 23 || subStartMinute < 0 || subStartMinute > 59 ||
-                subEndHour < 0 || subEndHour > 23 || subEndMinute < 0 || subEndMinute > 59) {
-              alert('Sub-condição de horário HH:MM inválida.'); return;
-            }
-            subCondData.startHour = subStartHour; subCondData.endHour = subEndHour;
-            subCondData.startMinute = subStartMinute; subCondData.endMinute = subEndMinute;
+            subCondData.startHour = parseInt(subFieldsContainer.querySelector('.sub-start-hour').value, 10);
+            subCondData.endHour = parseInt(subFieldsContainer.querySelector('.sub-end-hour').value, 10);
+            subCondData.startMinute = parseInt(subFieldsContainer.querySelector('.sub-start-minute').value, 10);
+            subCondData.endMinute = parseInt(subFieldsContainer.querySelector('.sub-end-minute').value, 10);
             break;
           case 'domain':
             subCondData.domains = subFieldsContainer.querySelector('.sub-domains').value.split('\n').map(d => d.trim()).filter(d => d.length > 0);
-            if (subCondData.domains.length === 0) { alert('Sub-condição de domínio precisa de pelo menos um domínio.'); return; }
             break;
           case 'specialDate':
-            const subMonth = parseInt(subFieldsContainer.querySelector('.sub-special-month').value, 10);
-            const subDay = parseInt(subFieldsContainer.querySelector('.sub-special-day').value, 10);
-            if (isNaN(subMonth) || subMonth < 1 || subMonth > 12 || isNaN(subDay) || subDay < 1 || subDay > 31) {
-              alert('Sub-condição de data especial inválida.'); return;
-            }
-            subCondData.month = subMonth; subCondData.day = subDay;
+            subCondData.month = parseInt(subFieldsContainer.querySelector('.sub-special-month').value, 10);
+            subCondData.day = parseInt(subFieldsContainer.querySelector('.sub-special-day').value, 10);
             break;
-          default: alert(`Tipo de sub-condição desconhecido: ${subType}`); return;
         }
         ruleData.subConditions.push(subCondData);
       }
       break;
   }
+  
   try {
-    if (currentEditingRuleId !== null) await window.TextExpanderDB.updateExpansionRule(ruleData);
-    else await window.TextExpanderDB.addExpansionRule(ruleData);
+    if (currentEditingRuleId !== null) {
+        await window.TextExpanderDB.updateExpansionRule(ruleData);
+    } else {
+        await window.TextExpanderDB.addExpansionRule(ruleData);
+    }
     ruleForm.classList.add('hidden');
     addRuleBtn.classList.remove('hidden');
     currentEditingRuleId = null;
@@ -954,7 +932,11 @@ async function handleSaveRule() {
     await performLocalRefresh();
   } catch (error) {
     console.error('Erro ao salvar regra:', error);
-    alert('Erro ao salvar regra. Verifique os dados e tente novamente.');
+    if (error.message.includes('Validation Error:')) {
+        alert(`Erro de validação da regra: ${error.message}`);
+    } else {
+        alert('Erro ao salvar regra. Verifique os dados e tente novamente.');
+    }
   }
 }
 
@@ -1076,71 +1058,24 @@ async function handleImport() {
   try {
     const text = await file.text();
     const importData = JSON.parse(text);
-    if (!Array.isArray(importData)) { alert('Formato de arquivo de importação inválido.'); return; }
+    if (!Array.isArray(importData)) { alert('Formato de arquivo de importação inválido: esperado um array de abreviações.'); return; }
 
-    const validAbbreviations = importData.filter(abbr =>
-      abbr && typeof abbr === 'object' && typeof abbr.abbreviation === 'string' && abbr.abbreviation.trim() !== '' && typeof abbr.expansion === 'string'
-    ).map(abbr => ({
-        abbreviation: abbr.abbreviation.trim(), expansion: abbr.expansion,
-        category: typeof abbr.category === 'string' ? abbr.category : 'Imported',
-        caseSensitive: typeof abbr.caseSensitive === 'boolean' ? abbr.caseSensitive : false,
-        enabled: typeof abbr.enabled === 'boolean' ? abbr.enabled : true,
-        createdAt: abbr.createdAt || new Date().toISOString(), lastUsed: abbr.lastUsed || null,
-        usageCount: Number(abbr.usageCount) || 0,
-        rules: Array.isArray(abbr.rules) ? abbr.rules.map(r => ({...r, id: undefined, abbreviationId: abbr.abbreviation.trim()})) : []
-    }));
-
-    if (validAbbreviations.length === 0) { alert('Nenhuma abreviação válida encontrada no arquivo.'); return; }
-
+    // No `importAbbreviations` do `db.js`, a validação de cada item será feita individualmente.
+    // Opcionalmente, pode-se fazer uma validação mais robusta aqui antes de passar para o DB.
+    
+    // Se replace for true, limpar tudo antes de importar
     if (importReplace.checked) {
-      await window.TextExpanderDB.clearAllAbbreviations();
-      const db = await window.TextExpanderDB.openDatabase();
-      const txRules = db.transaction(RULES_STORE, 'readwrite');
-      const rulesStoreObj = txRules.objectStore(RULES_STORE);
-      await new Promise((resolve, reject) => {
-        const clearRequest = rulesStoreObj.clear();
-        clearRequest.onsuccess = resolve; clearRequest.onerror = reject;
-      });
+      await window.TextExpanderDB.clearAllAbbreviations(); // Isso já limpa regras também
     }
 
-    let importedCount = 0;
-    for (const abbrToImport of validAbbreviations) {
-      let existingAbbr = null;
-      if (!importReplace.checked) {
-        try {
-          const db = await window.TextExpanderDB.openDatabase();
-          const tx = db.transaction('abbreviations', 'readonly');
-          const store = tx.objectStore('abbreviations');
-          const req = store.get(abbrToImport.abbreviation);
-          await new Promise((resolve, reject) => {
-            req.onsuccess = () => { existingAbbr = req.result; resolve(); }; req.onerror = reject;
-          });
-        } catch (e) { console.error("Erro ao verificar abreviação existente:", e); }
-      }
-      if (importReplace.checked || !existingAbbr) {
-          await window.TextExpanderDB.importAbbreviations([abbrToImport]); // Assumindo que importAbbreviations lida com um array
-          importedCount++;
-          if (abbrToImport.rules && abbrToImport.rules.length > 0) {
-              if (importReplace.checked && existingAbbr && existingAbbr.rules) {
-                  for (const oldRule of existingAbbr.rules) {
-                      if (oldRule.id !== undefined) await window.TextExpanderDB.deleteExpansionRule(oldRule.id);
-                  }
-              }
-              for (let rule of abbrToImport.rules) {
-                  const newRuleData = {...rule, abbreviationId: abbrToImport.abbreviation};
-                  delete newRuleData.id; // Garante que um novo ID seja gerado
-                  try { await window.TextExpanderDB.addExpansionRule(newRuleData); }
-                  catch (e) { console.warn(`Falha ao importar regra para ${abbrToImport.abbreviation}:`, e.message); }
-              }
-          }
-      }
-    }
+    const importedCount = await window.TextExpanderDB.importAbbreviations(importData);
+
     hideImportModal();
     await performLocalRefresh();
-    alert(`Importadas ${importedCount} abreviações com sucesso.`);
+    alert(`Importadas ${importedCount} abreviações com sucesso. Algumas podem ter sido ignoradas se inválidas ou duplicadas (verifique o console).`);
   } catch (error) {
     console.error('Erro ao importar abreviações:', error);
-    alert('Erro ao importar abreviações. Verifique o formato do arquivo.');
+    alert('Erro ao importar abreviações. Verifique o formato do arquivo e o console para detalhes.');
   }
 }
 
@@ -1194,18 +1129,7 @@ function handleSaveSettings() {
 async function handleClearData() {
   if (confirm('Tem certeza que deseja apagar TODAS as abreviações e TODAS as regras? Esta ação não pode ser desfeita.')) {
     try {
-      const db = await window.TextExpanderDB.openDatabase();
-      const transactionRules = db.transaction(RULES_STORE, 'readwrite');
-      const rulesStoreObj = transactionRules.objectStore(RULES_STORE);
-      const clearRulesRequest = rulesStoreObj.clear();
-      await new Promise((resolve, reject) => {
-        clearRulesRequest.onsuccess = resolve;
-        clearRulesRequest.onerror = (event) => {
-            console.error('Erro ao limpar rules store:', event.target.error);
-            reject(event.target.error || new Error('Falha ao limpar o repositório de regras.'));
-        };
-      });
-      await window.TextExpanderDB.clearAllAbbreviations();
+      await window.TextExpanderDB.clearAllAbbreviations(); // Agora esta função também limpa as regras
       hideSettingsModal();
       await performLocalRefresh();
       alert('Todos os dados foram apagados.');
