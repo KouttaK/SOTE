@@ -9,9 +9,11 @@
     triggerSpace: true,
     triggerTab: true,
     triggerEnter: true,
-    enableUndo: true
+    enableUndo: true,
+    autocompleteEnabled: true,
+    autocompleteMinChars: 2,
+    autocompleteMaxSuggestions: 5
   };
-
 
   const TRIGGER_KEYS_MAP = { // Mapeamento de códigos de tecla para nomes de gatilho
     Space: 'triggerSpace',
@@ -20,15 +22,35 @@
   };
 
   function loadSettings() {
-    chrome.storage.sync.get(['triggerSpace', 'triggerTab', 'triggerEnter', 'enableUndo'], (result) => {
+    chrome.storage.sync.get([
+      'triggerSpace', 'triggerTab', 'triggerEnter', 'enableUndo',
+      'autocompleteEnabled', 'autocompleteMinChars', 'autocompleteMaxSuggestions'
+    ], (result) => {
       settings.triggerSpace = result.triggerSpace !== false;
       settings.triggerTab = result.triggerTab !== false; 
       settings.triggerEnter = result.triggerEnter !== false;
       settings.enableUndo = result.enableUndo !== false;
-      // console.log('[SOTE DEBUG content-script] Configurações carregadas:', settings);
+      settings.autocompleteEnabled = result.autocompleteEnabled !== false;
+      settings.autocompleteMinChars = result.autocompleteMinChars || 2;
+      settings.autocompleteMaxSuggestions = result.autocompleteMaxSuggestions || 5;
+      
+      // Update autocomplete settings
+      updateAutocompleteSettings();
     });
   }
 
+  function updateAutocompleteSettings() {
+    if (window.SoteAutocomplete && window.SoteAutocomplete.getInstance()) {
+      const autocomplete = window.SoteAutocomplete.getInstance();
+      if (settings.autocompleteEnabled) {
+        autocomplete.enable();
+      } else {
+        autocomplete.disable();
+      }
+      autocomplete.setMinChars(settings.autocompleteMinChars);
+      autocomplete.setMaxSuggestions(settings.autocompleteMaxSuggestions);
+    }
+  }
 
   function fetchAbbreviations() {
     if (!chrome.runtime || !chrome.runtime.sendMessage) {
@@ -37,7 +59,6 @@
       return;
     }
     try {
-      // console.log('[SOTE DEBUG content-script] Solicitando abreviações ao service worker...');
       chrome.runtime.sendMessage({ type: 'GET_ABBREVIATIONS' }, response => {
         if (chrome.runtime.lastError) {
           console.error("[SOTE DEBUG content-script] Erro em fetchAbbreviations sendMessage:", chrome.runtime.lastError.message);
@@ -45,18 +66,11 @@
           return;
         }
         if (response && response.abbreviations) {
-          try {
-            // console.log('[SOTE DEBUG content-script] Abreviações recebidas do service worker (antes do filter):', JSON.parse(JSON.stringify(response.abbreviations)));
-          } catch (e) {
-            // console.warn('[SOTE DEBUG content-script] Não foi possível fazer stringify da resposta de abreviações:', response.abbreviations, e);
-          }
           abbreviationsCache = response.abbreviations.filter(abbr => abbr.enabled);
-          // console.log(`[SOTE DEBUG content-script] Carregadas ${abbreviationsCache.length} abreviações habilitadas no cache.`);
         } else if (response && response.error) {
             console.error("[SOTE DEBUG content-script] Falha ao buscar abreviações do service worker:", response.error);
             abbreviationsCache = [];
         } else {
-          // console.warn("[SOTE DEBUG content-script] Nenhuma resposta válida ou sem abreviações de GET_ABBREVIATIONS");
           abbreviationsCache = [];
         }
       });
@@ -80,7 +94,6 @@
     const triggerNameFromCode = TRIGGER_KEYS_MAP[event.code]; // Fallback for some keys like Space
     const triggerName = triggerNameFromKey || triggerNameFromCode;
 
-
     if (event.key === 'Backspace' && settings.enableUndo) {
        // Potencialmente chamar handleBackspaceUndo apenas se _lastExpansion existir
        if (element._lastExpansion) {
@@ -95,7 +108,6 @@
     if (!triggerName || !settings[triggerName]) {
         return;
     }
-
 
     let text = '';
     let cursorPosition = 0;
@@ -209,22 +221,27 @@
     }
   }
 
-
   function init() {
     loadSettings();
     fetchAbbreviations();
     document.addEventListener('keydown', handleKeyDown, true); 
 
+    // Initialize autocomplete after a short delay to ensure all scripts are loaded
+    setTimeout(() => {
+      if (window.SoteAutocomplete) {
+        window.SoteAutocomplete.init();
+        updateAutocompleteSettings();
+      }
+    }, 100);
+
     chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       if (message.type === 'ABBREVIATIONS_UPDATED' || message.type === 'INITIAL_SEED_COMPLETE') {
-        // console.log('[SOTE DEBUG content-script] Recebido ABBREVIATIONS_UPDATED/INITIAL_SEED_COMPLETE, buscando novamente...');
         fetchAbbreviations();
       } else if (message.type === 'TOGGLE_ENABLED') {
-        // console.log('[SOTE DEBUG content-script] Recebido TOGGLE_ENABLED, novo estado:', message.enabled);
         isEnabled = message.enabled;
       } else if (message.type === 'SETTINGS_UPDATED') {
-        // console.log('[SOTE DEBUG content-script] Recebido SETTINGS_UPDATED, recarregando configurações...');
         settings = { ...settings, ...message.settings };
+        updateAutocompleteSettings();
       }
       return false; // Não estamos usando sendResponse aqui.
     });

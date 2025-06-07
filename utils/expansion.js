@@ -497,6 +497,77 @@
     });
   }
 
+  async function replaceTextAtCursorWithExpansion(element, wordStart, currentCursorPos, finalExpansionText, finalCursorOffset) {
+    if (!element) return false;
+
+    let newCursorPos;
+
+    if (element.isContentEditable) {
+      const selection = window.getSelection();
+      if (!selection.rangeCount) {
+        console.warn('[Expansion DEBUG] ContentEditable: Sem range de seleção. Não foi possível expandir.');
+        return false;
+      }
+
+      const range = selection.getRangeAt(0);
+      console.log('[Expansion DEBUG] ContentEditable: range.startContainer:', range.startContainer, 'range.startOffset:', range.startOffset); // LOG DE DEBUG
+      console.log('[Expansion DEBUG] ContentEditable: wordStart:', wordStart, 'currentCursorPos:', currentCursorPos); // LOG DE DEBUG
+
+      const wordRange = document.createRange();
+
+      try {
+        // Usa os valores passados de wordStart e currentCursorPos para definir o range a ser substituído
+        wordRange.setStart(range.startContainer, wordStart);
+        wordRange.setEnd(range.startContainer, currentCursorPos);
+      } catch (e) {
+        console.error("Erro ao definir wordRange para substituição em contentEditable:", e, {startContainer: range.startContainer, wordStart, currentCursorPos});
+        return false;
+      }
+      
+      wordRange.deleteContents(); // Deleta o texto da abreviação parcial
+      const textNode = document.createTextNode(finalExpansionText); // Cria um novo nó de texto com a expansão
+      wordRange.insertNode(textNode); // Insere o nó de texto no lugar
+
+      selection.removeAllRanges(); // Limpa seleções existentes
+      const newRange = document.createRange(); // Cria um novo range para o cursor
+
+      if (finalCursorOffset !== -1) {
+        const safeCursorOffset = Math.min(finalCursorOffset, textNode.length);
+        newRange.setStart(textNode, safeCursorOffset); // Posiciona o cursor dentro do novo texto
+      } else {
+        newRange.setStartAfter(textNode); // Posiciona o cursor após o novo texto
+      }
+      newRange.collapse(true); // Colapsa o range para um ponto de inserção
+      selection.addRange(newRange); // Adiciona o novo range ao objeto de seleção
+
+      // Dispara o evento 'input' no elemento contentEditable pai
+      let editableElementHost = element;
+      while(editableElementHost && !editableElementHost.isContentEditable) {
+          editableElementHost = editableElementHost.parentNode;
+      }
+      if(editableElementHost && editableElementHost.isContentEditable) {
+          editableElementHost.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
+      }
+      return true;
+
+    } else { // Para input/textarea (lógica que já estava funcionando)
+      const value = element.value;
+      const newValue = value.substring(0, wordStart) +
+                       finalExpansionText +
+                       value.substring(currentCursorPos);
+      element.value = newValue;
+
+      if (finalCursorOffset !== -1) {
+        newCursorPos = wordStart + finalCursorOffset;
+      } else {
+        newCursorPos = wordStart + finalExpansionText.length;
+      }
+      element.setSelectionRange(newCursorPos, newCursorPos);
+      element.dispatchEvent(new Event('input', { bubbles: true }));
+      return true;
+    }
+  }
+
   window.TextExpander = {
     matchAbbreviation,
     expandAbbreviation, 
@@ -504,7 +575,9 @@
     undoExpansion,
     undoExpansionInContentEditable,
     evaluateRule,
-    getMatchingExpansion
+    getMatchingExpansion,
+    processSpecialActions,
+    replaceTextAtCursorWithExpansion 
   };
 
   window.DomainValidator = {

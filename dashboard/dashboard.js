@@ -49,6 +49,11 @@ const triggerEnter = document.getElementById('trigger-enter');
 const settingUndo = document.getElementById('setting-undo');
 const clearDataBtn = document.getElementById('clear-data-btn');
 
+// Autocomplete Settings
+const autocompleteEnabledCheckbox = document.getElementById('autocomplete-enabled');
+const autocompleteMinCharsInput = document.getElementById('autocomplete-min-chars');
+const autocompleteMaxSuggestionsInput = document.getElementById('autocomplete-max-suggestions');
+
 // Rules Modal Elements
 const rulesModalContainer = document.getElementById('rules-modal');
 const rulesModalTitle = document.getElementById('rules-modal-title');
@@ -1098,19 +1103,47 @@ function showSettingsModal() { settingsModal.classList.remove('hidden'); loadSet
 function hideSettingsModal() { settingsModal.classList.add('hidden'); }
 
 function loadSettings() {
-  chrome.storage.sync.get(['triggerSpace', 'triggerTab', 'triggerEnter', 'enableUndo'], (result) => {
+  chrome.storage.sync.get([
+    'triggerSpace', 'triggerTab', 'triggerEnter', 'enableUndo',
+    'autocompleteEnabled', 'autocompleteMinChars', 'autocompleteMaxSuggestions'
+  ], (result) => {
     triggerSpace.checked = result.triggerSpace !== false;
     triggerTab.checked = result.triggerTab !== false;
     triggerEnter.checked = result.triggerEnter !== false;
     settingUndo.checked = result.enableUndo !== false;
+    
+    // Load autocomplete settings
+    if (autocompleteEnabledCheckbox) {
+      autocompleteEnabledCheckbox.checked = result.autocompleteEnabled !== false;
+    }
+    if (autocompleteMinCharsInput) {
+      autocompleteMinCharsInput.value = result.autocompleteMinChars || 2;
+    }
+    if (autocompleteMaxSuggestionsInput) {
+      autocompleteMaxSuggestionsInput.value = result.autocompleteMaxSuggestions || 5;
+    }
   });
 }
 
 function handleSaveSettings() {
   const settingsToSave = {
-    triggerSpace: triggerSpace.checked, triggerTab: triggerTab.checked,
-    triggerEnter: triggerEnter.checked, enableUndo: settingUndo.checked
+    triggerSpace: triggerSpace.checked, 
+    triggerTab: triggerTab.checked,
+    triggerEnter: triggerEnter.checked, 
+    enableUndo: settingUndo.checked
   };
+
+  // Add autocomplete settings if elements exist
+  if (autocompleteEnabledCheckbox) {
+    settingsToSave.autocompleteEnabled = autocompleteEnabledCheckbox.checked;
+  }
+  if (autocompleteMinCharsInput) {
+    settingsToSave.autocompleteMinChars = parseInt(autocompleteMinCharsInput.value, 10) || 2;
+  }
+  if (autocompleteMaxSuggestionsInput) {
+    settingsToSave.autocompleteMaxSuggestions = parseInt(autocompleteMaxSuggestionsInput.value, 10) || 5;
+  }
+
   chrome.storage.sync.set(settingsToSave, () => {
     hideSettingsModal();
     alert('Configurações salvas com sucesso.');
