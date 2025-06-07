@@ -16,6 +16,7 @@ const newCaseSensitiveCheckbox = document.getElementById('new-case-sensitive');
 const customCategoryGroup = document.getElementById('custom-category-group');
 const newCustomCategoryInput = document.getElementById('new-custom-category');
 const insertActionButtons = document.querySelectorAll('#add-form .btn-insert-action');
+const formTitle = document.getElementById('form-title');
 
 // State
 let abbreviations = [];
@@ -35,7 +36,6 @@ function formatExpansionForDisplay(text) {
       .replace(/\$transferencia\$/g, '[área de transferência]');
 }
 
-
 function insertTextAtCursor(textarea, textToInsert) {
   if (!textarea) return;
   const startPos = textarea.selectionStart;
@@ -53,17 +53,43 @@ async function performLocalRefreshPopup() {
   await loadCategories(); 
 }
 
+function showLoadingState() {
+  abbreviationsList.innerHTML = `
+    <div class="loading" role="status" aria-live="polite">
+      <div class="loading-spinner" aria-hidden="true"></div>
+      <p>Carregando abreviações...</p>
+    </div>
+  `;
+}
+
+function showErrorState(message) {
+  abbreviationsList.innerHTML = `
+    <div class="empty-state">
+      <div class="empty-state-icon" aria-hidden="true">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"></circle>
+          <line x1="15" y1="9" x2="9" y2="15"></line>
+          <line x1="9" y1="9" x2="15" y2="15"></line>
+        </svg>
+      </div>
+      <h3>Erro ao carregar</h3>
+      <p>${message}</p>
+    </div>
+  `;
+}
+
 async function init() {
   // Verifica se a dependência TextExpanderDB está disponível
   if (typeof window.TextExpanderDB === 'undefined' || typeof window.TextExpanderDB.getAllAbbreviations !== 'function') { 
     console.error("TextExpanderDB não foi inicializado corretamente para popup.js. Verifique a ordem dos scripts no HTML."); 
-    abbreviationsList.innerHTML = `<div class="empty-state"><p>Erro ao inicializar o banco de dados. Tente reabrir.</p></div>`; 
+    showErrorState('Erro ao inicializar o banco de dados. Tente reabrir o popup.');
     return;
   }
 
   await loadAbbreviations(); 
   await loadCategories(); 
 
+  // Event Listeners
   searchInput.addEventListener('input', handleSearch); 
   enabledToggle.addEventListener('change', handleToggleEnabled); 
   addBtn.addEventListener('click', showAddForm); 
@@ -71,17 +97,18 @@ async function init() {
   cancelBtn.addEventListener('click', hideAddForm); 
   saveBtn.addEventListener('click', handleSaveAbbreviation); 
 
+  // Category select change handler
   if (newCategorySelect) {
     newCategorySelect.addEventListener('change', function() {
-      if (this.value === 'Personalizada') {
-        if (customCategoryGroup) customCategoryGroup.style.display = 'block';
-        if (newCustomCategoryInput) newCustomCategoryInput.focus();
-      } else {
-        if (customCategoryGroup) customCategoryGroup.style.display = 'none';
+      const isCustom = this.value === 'Personalizada';
+      customCategoryGroup.style.display = isCustom ? 'block' : 'none';
+      if (isCustom && newCustomCategoryInput) {
+        newCustomCategoryInput.focus();
       }
     });
   }
 
+  // Insert action buttons
   insertActionButtons.forEach(button => {
     button.addEventListener('click', function() {
       const action = this.getAttribute('data-action');
@@ -91,19 +118,24 @@ async function init() {
     });
   });
 
+  // Keyboard navigation
+  document.addEventListener('keydown', handleKeyboardNavigation);
+
+  // Load initial state
   chrome.storage.sync.get('enabled', (result) => { 
     if (result.hasOwnProperty('enabled')) { 
       isEnabled = result.enabled; 
       enabledToggle.checked = isEnabled; 
-      statusText.textContent = isEnabled ? 'Habilitado' : 'Desabilitado'; 
+      updateStatusText();
     } else { 
         isEnabled = true;
         enabledToggle.checked = true;
-        statusText.textContent = 'Habilitado';
+        updateStatusText();
         chrome.storage.sync.set({ enabled: true });
     }
   });
 
+  // Listen for updates
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.type === 'ABBREVIATIONS_UPDATED' || message.type === 'INITIAL_SEED_COMPLETE') {
       performLocalRefreshPopup();
@@ -112,26 +144,26 @@ async function init() {
   });
 }
 
+function updateStatusText() {
+  statusText.textContent = isEnabled ? 'Habilitado' : 'Desabilitado';
+  statusText.setAttribute('aria-label', `Expansor de texto ${isEnabled ? 'habilitado' : 'desabilitado'}`);
+}
+
 async function loadAbbreviations() {
   try {
-    abbreviationsList.innerHTML = `<div class="loading">Carregando abreviações...</div>`;
-    // Assumimos que window.TextExpanderDB está carregado
+    showLoadingState();
     const freshAbbreviations = await window.TextExpanderDB.getAllAbbreviations();
-    if (Array.isArray(freshAbbreviations)) { // Sempre verificar o tipo
+    if (Array.isArray(freshAbbreviations)) {
         abbreviations = freshAbbreviations;
         filterAbbreviations(); 
     } else {
         console.error('TextExpanderDB.getAllAbbreviations did not return an array in popup.');
         abbreviations = [];
-        abbreviationsList.innerHTML = `<div class="empty-state"><p>Erro no formato dos dados. Recarregue.</p></div>`;
+        showErrorState('Erro no formato dos dados. Recarregue o popup.');
     }
   } catch (error) {
     console.error('Erro ao carregar abreviações:', error);
-    abbreviationsList.innerHTML = `
-      <div class="empty-state">
-        <p>Erro ao carregar abreviações. Tente reabrir o popup.</p>
-      </div>
-    `;
+    showErrorState('Erro ao carregar abreviações. Tente reabrir o popup.');
   }
 }
 
@@ -141,6 +173,7 @@ async function loadCategories() {
     const standardValues = ['Comum', 'Pessoal', 'Trabalho', 'Personalizada'];
     const currentOptions = Array.from(newCategorySelect.options).map(opt => opt.value);
     
+    // Remove categories that no longer exist
     currentOptions.forEach(val => {
         if (!standardValues.includes(val) && !categories.includes(val)) {
             const optToRemove = newCategorySelect.querySelector(`option[value="${val}"]`);
@@ -150,6 +183,7 @@ async function loadCategories() {
 
     const personalizadaOption = newCategorySelect.querySelector('option[value="Personalizada"]');
     
+    // Add new categories
     categories.forEach(category => { 
       if (!newCategorySelect.querySelector(`option[value="${category}"]`)) { 
         const option = document.createElement('option'); 
@@ -171,15 +205,30 @@ function renderAbbreviations() {
   if (filteredAbbreviations.length === 0 && abbreviations.length > 0 && searchInput.value.trim() !== '') {
     abbreviationsList.innerHTML = `
       <div class="empty-state">
-        <p>Nenhuma abreviação encontrada para "${searchInput.value}".</p>
+        <div class="empty-state-icon" aria-hidden="true">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="8"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+          </svg>
+        </div>
+        <h3>Nenhum resultado</h3>
+        <p>Nenhuma abreviação encontrada para "${searchInput.value}"</p>
       </div>
     `;
     return;
   }
+  
   if (filteredAbbreviations.length === 0) {
     abbreviationsList.innerHTML = `
       <div class="empty-state">
-        <p>Nenhuma abreviação cadastrada. Adicione algumas!</p>
+        <div class="empty-state-icon" aria-hidden="true">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="12" y1="5" x2="12" y2="19"></line>
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+          </svg>
+        </div>
+        <h3>Nenhuma abreviação</h3>
+        <p>Comece criando sua primeira abreviação para acelerar sua digitação</p>
       </div>
     `;
     return;
@@ -196,28 +245,31 @@ function renderAbbreviations() {
     return a.abbreviation.localeCompare(b.abbreviation); 
   });
   
-  sortedForDisplay.forEach(abbr => {
+  sortedForDisplay.forEach((abbr, index) => {
     const item = document.createElement('div');
     item.className = 'abbreviation-item';
+    item.setAttribute('role', 'listitem');
+    item.setAttribute('tabindex', '0');
+    item.setAttribute('aria-label', `Abreviação ${abbr.abbreviation}, expande para ${abbr.expansion}`);
     
-    // Formata a expansão para exibição amigável
+    // Format expansion for display
     const formattedExpansion = formatExpansionForDisplay(abbr.expansion);
-    const expansionDisplay = formattedExpansion.length > 30 ? formattedExpansion.substring(0, 27) + '...' : formattedExpansion;
+    const expansionDisplay = formattedExpansion.length > 40 ? formattedExpansion.substring(0, 37) + '...' : formattedExpansion;
 
     item.innerHTML = `
       <div class="abbreviation-details">
-        <span class="abbreviation-text">${abbr.abbreviation}</span>
-        <span class="expansion-text" title="${formattedExpansion}">${expansionDisplay}</span>
-        <span class="category-badge">${abbr.category || 'Sem Categoria'}</span>
+        <div class="abbreviation-text">${escapeHtml(abbr.abbreviation)}</div>
+        <div class="expansion-text" title="${escapeHtml(formattedExpansion)}">${escapeHtml(expansionDisplay)}</div>
+        <div class="category-badge">${escapeHtml(abbr.category || 'Sem Categoria')}</div>
       </div>
       <div class="item-actions">
-        <button class="edit-btn" data-id="${abbr.abbreviation}" title="Editar">
+        <button class="action-btn edit-btn" data-id="${escapeHtml(abbr.abbreviation)}" title="Editar abreviação" aria-label="Editar ${abbr.abbreviation}">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M12 20h9"></path>
             <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
           </svg>
         </button>
-        <button class="delete-btn" data-id="${abbr.abbreviation}" title="Excluir">
+        <button class="action-btn delete-btn" data-id="${escapeHtml(abbr.abbreviation)}" title="Excluir abreviação" aria-label="Excluir ${abbr.abbreviation}">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M3 6h18"></path>
             <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
@@ -230,11 +282,32 @@ function renderAbbreviations() {
     const editBtn = item.querySelector('.edit-btn');
     const deleteBtn = item.querySelector('.delete-btn');
     
-    editBtn.addEventListener('click', () => handleEditAbbreviation(abbr));
-    deleteBtn.addEventListener('click', () => handleDeleteAbbreviation(abbr.abbreviation));
+    editBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      handleEditAbbreviation(abbr);
+    });
+    
+    deleteBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      handleDeleteAbbreviation(abbr.abbreviation);
+    });
+
+    // Add keyboard support for item
+    item.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        handleEditAbbreviation(abbr);
+      }
+    });
     
     abbreviationsList.appendChild(item);
   });
+}
+
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
 }
 
 function filterAbbreviations() {
@@ -252,11 +325,13 @@ function filterAbbreviations() {
   renderAbbreviations();
 }
 
-function handleSearch() { filterAbbreviations(); }
+function handleSearch() { 
+  filterAbbreviations(); 
+}
 
 function handleToggleEnabled() {
   isEnabled = enabledToggle.checked;
-  statusText.textContent = isEnabled ? 'Habilitado' : 'Desabilitado';
+  updateStatusText();
   chrome.storage.sync.set({ enabled: isEnabled });
   chrome.tabs.query({}, (tabs) => {
     tabs.forEach(tab => {
@@ -269,8 +344,11 @@ function handleToggleEnabled() {
 }
 
 function showAddForm() {
-  addForm.classList.remove('hidden'); 
+  addForm.classList.remove('hidden');
+  addForm.classList.add('show');
+  
   if (!currentEditId) { 
+    formTitle.textContent = 'Adicionar Nova Abreviação';
     newAbbreviationInput.value = ''; 
     newAbbreviationInput.readOnly = false;
     newExpansionTextarea.value = ''; 
@@ -278,22 +356,35 @@ function showAddForm() {
     newCaseSensitiveCheckbox.checked = false; 
     if (newCustomCategoryInput) newCustomCategoryInput.value = '';
   } else { 
+    formTitle.textContent = 'Editar Abreviação';
     newAbbreviationInput.readOnly = true; 
   }
+  
   if (newCategorySelect.value === 'Personalizada') {
     if (customCategoryGroup) customCategoryGroup.style.display = 'block';
   } else {
     if (customCategoryGroup) customCategoryGroup.style.display = 'none';
   }
-  newAbbreviationInput.focus(); 
+  
+  // Focus management
+  setTimeout(() => {
+    newAbbreviationInput.focus();
+  }, 300);
 }
 
 function hideAddForm() {
-  addForm.classList.add('hidden'); 
+  addForm.classList.remove('show');
+  setTimeout(() => {
+    addForm.classList.add('hidden');
+  }, 250);
+  
   currentEditId = null; 
   if (customCategoryGroup) customCategoryGroup.style.display = 'none';
   if (newCustomCategoryInput) newCustomCategoryInput.value = '';
-  newAbbreviationInput.readOnly = false; 
+  newAbbreviationInput.readOnly = false;
+  
+  // Return focus to add button
+  addBtn.focus();
 }
 
 function openDashboard() {
@@ -308,14 +399,14 @@ async function handleSaveAbbreviation() {
   const caseSensitive = newCaseSensitiveCheckbox.checked; 
   
   if (!abbreviation || !expansion) { 
-    alert('Por favor, insira a abreviação e a expansão.'); 
+    showNotification('Por favor, insira a abreviação e a expansão.', 'error');
     return; 
   }
   
   if (category === 'Personalizada') {
     const customName = newCustomCategoryInput ? newCustomCategoryInput.value.trim() : '';
     if (!customName) {
-        alert('Por favor, insira o nome da categoria personalizada.');
+        showNotification('Por favor, insira o nome da categoria personalizada.', 'error');
         if (newCustomCategoryInput) newCustomCategoryInput.focus();
         return;
     }
@@ -326,22 +417,25 @@ async function handleSaveAbbreviation() {
     let abbrData = {
       abbreviation, expansion, category, caseSensitive, enabled: true, rules: [], 
     };
+    
     if (currentEditId) { 
-      // `updateAbbreviation` agora busca o item existente e mescla para preservar campos
       await window.TextExpanderDB.updateAbbreviation(abbrData); 
+      showNotification('Abreviação atualizada com sucesso!', 'success');
     } else {
       await window.TextExpanderDB.addAbbreviation(abbrData); 
+      showNotification('Abreviação criada com sucesso!', 'success');
     }
+    
     await performLocalRefreshPopup();
     hideAddForm(); 
   } catch (error) {
     console.error('Erro ao salvar abreviação:', error); 
     if (error.message && error.message.toLowerCase().includes('key already exists')) {
-        alert('Erro ao salvar: A abreviação já existe.');
+        showNotification('Erro: A abreviação já existe.', 'error');
     } else if (error.message && error.message.includes('Validation Error:')) {
-        alert(`Erro de validação: ${error.message}`);
+        showNotification(`Erro de validação: ${error.message}`, 'error');
     } else {
-        alert('Erro ao salvar abreviação. Por favor, tente novamente.'); 
+        showNotification('Erro ao salvar abreviação. Tente novamente.', 'error'); 
     }
   }
 }
@@ -382,19 +476,80 @@ function handleEditAbbreviation(abbr) {
       if (customCategoryGroup) customCategoryGroup.style.display = 'none';
       if (newCustomCategoryInput) newCustomCategoryInput.value = '';
   }
+  
   showAddForm(); 
 }
 
 async function handleDeleteAbbreviation(abbreviationKey) {
-  if (confirm(`Tem certeza que deseja excluir "${abbreviationKey}"? (As regras associadas não serão excluídas pelo popup)`)) {
+  if (confirm(`Tem certeza que deseja excluir "${abbreviationKey}"?`)) {
     try {
-      await window.TextExpanderDB.deleteAbbreviation(abbreviationKey); // deleteAbbreviation agora também remove regras associadas
+      await window.TextExpanderDB.deleteAbbreviation(abbreviationKey);
+      showNotification('Abreviação excluída com sucesso!', 'success');
       await performLocalRefreshPopup();
     } catch (error) {
       console.error('Erro ao excluir abreviação:', error);
-      alert('Erro ao excluir abreviação. Por favor, tente novamente.');
+      showNotification('Erro ao excluir abreviação. Tente novamente.', 'error');
     }
   }
+}
+
+function handleKeyboardNavigation(e) {
+  if (e.key === 'Escape') {
+    if (!addForm.classList.contains('hidden')) {
+      hideAddForm();
+    }
+  }
+}
+
+function showNotification(message, type = 'info') {
+  // Create notification element
+  const notification = document.createElement('div');
+  notification.className = `notification notification-${type}`;
+  notification.style.cssText = `
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    padding: 12px 16px;
+    border-radius: 8px;
+    color: white;
+    font-weight: 500;
+    font-size: 14px;
+    z-index: 10000;
+    transform: translateX(100%);
+    transition: transform 0.3s ease;
+    max-width: 300px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  `;
+  
+  // Set background color based on type
+  switch (type) {
+    case 'success':
+      notification.style.background = 'linear-gradient(135deg, #10b981, #059669)';
+      break;
+    case 'error':
+      notification.style.background = 'linear-gradient(135deg, #ef4444, #dc2626)';
+      break;
+    default:
+      notification.style.background = 'linear-gradient(135deg, #3b82f6, #2563eb)';
+  }
+  
+  notification.textContent = message;
+  document.body.appendChild(notification);
+  
+  // Animate in
+  setTimeout(() => {
+    notification.style.transform = 'translateX(0)';
+  }, 100);
+  
+  // Remove after delay
+  setTimeout(() => {
+    notification.style.transform = 'translateX(100%)';
+    setTimeout(() => {
+      if (notification.parentNode) {
+        notification.parentNode.removeChild(notification);
+      }
+    }, 300);
+  }, 3000);
 }
 
 document.addEventListener('DOMContentLoaded', init);

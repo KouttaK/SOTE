@@ -40,7 +40,12 @@
   },
   "web_accessible_resources": [
     {
-      "resources": ["utils/db.js", "utils/expansion.js", "utils/autocomplete.js"],
+      "resources": [
+        "utils/db.js", 
+        "utils/expansion.js", 
+        "utils/autocomplete.js",
+        "utils/autocomplete.css"
+      ],
       "matches": ["<all_urls>"]
     }
   ]

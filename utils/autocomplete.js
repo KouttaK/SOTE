@@ -77,22 +77,24 @@
     }
 
     createPopup() {
+      // Remove existing popup if any
+      const existingPopup = document.querySelector('.sote-autocomplete-popup');
+      if (existingPopup) {
+        existingPopup.remove();
+      }
+
       this.popup = document.createElement('div');
       this.popup.className = 'sote-autocomplete-popup';
-      this.popup.style.cssText = `
-        position: absolute;
-        z-index: 10000;
-        background: white;
-        border: 1px solid #e5e7eb;
-        border-radius: 8px;
-        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-        max-width: 300px;
-        min-width: 200px;
-        font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-        font-size: 14px;
-        display: none;
-        overflow: hidden;
-      `;
+      
+      // Load CSS if not already loaded
+      if (!document.querySelector('#sote-autocomplete-styles')) {
+        const link = document.createElement('link');
+        link.id = 'sote-autocomplete-styles';
+        link.rel = 'stylesheet';
+        link.href = chrome.runtime.getURL('utils/autocomplete.css');
+        document.head.appendChild(link);
+      }
+      
       document.body.appendChild(this.popup);
 
       this.popup.addEventListener('mousedown', (e) => {
@@ -108,6 +110,10 @@
                               element.tagName === 'TEXTAREA';
       
       if (!isEditableField) return;
+
+      // Avoid duplicate listeners
+      if (element.hasAttribute('data-sote-autocomplete')) return;
+      element.setAttribute('data-sote-autocomplete', 'true');
 
       element.addEventListener('input', (e) => this.handleInput(e));
       element.addEventListener('keydown', (e) => this.handleKeyDown(e));
@@ -247,14 +253,7 @@
       
       // Add header
       const header = document.createElement('div');
-      header.style.cssText = `
-        padding: 8px 12px;
-        background: #f9fafb;
-        border-bottom: 1px solid #e5e7eb;
-        font-size: 12px;
-        color: #6b7280;
-        font-weight: 500;
-      `;
+      header.className = 'sote-autocomplete-header';
       header.textContent = `Sugestões para "${currentWord}"`;
       this.popup.appendChild(header);
 
@@ -266,15 +265,14 @@
 
       // Add footer with keyboard hint
       const footer = document.createElement('div');
-      footer.style.cssText = `
-        padding: 6px 12px;
-        background: #f9fafb;
-        border-top: 1px solid #e5e7eb;
-        font-size: 11px;
-        color: #9ca3af;
-        text-align: center;
+      footer.className = 'sote-autocomplete-footer';
+      footer.innerHTML = `
+        <span>↑↓ navegar</span>
+        <span class="separator">•</span>
+        <kbd>Tab</kbd> aceitar
+        <span class="separator">•</span>
+        <kbd>Esc</kbd> fechar
       `;
-      footer.innerHTML = '↑↓ navegar • <kbd style="background: #e5e7eb; padding: 1px 4px; border-radius: 3px;">Tab</kbd> aceitar • <kbd style="background: #e5e7eb; padding: 1px 4px; border-radius: 3px;">Esc</kbd> fechar';
       this.popup.appendChild(footer);
 
       // Position and show popup
@@ -290,12 +288,6 @@
     createSuggestionItem(suggestion, currentWord, index) {
       const item = document.createElement('div');
       item.className = 'sote-autocomplete-item';
-      item.style.cssText = `
-        padding: 10px 12px;
-        cursor: pointer;
-        border-bottom: 1px solid #f3f4f6;
-        transition: background-color 0.15s ease;
-      `;
       
       item.addEventListener('mouseenter', () => {
         this.selectedIndex = index;
@@ -312,7 +304,7 @@
       let highlightedAbbr = abbr;
       
       if (matchIndex === 0) {
-        highlightedAbbr = `<strong style="color: #3b82f6;">${abbr.substring(0, currentWord.length)}</strong>${abbr.substring(currentWord.length)}`;
+        highlightedAbbr = `<span class="sote-autocomplete-highlight">${abbr.substring(0, currentWord.length)}</span>${abbr.substring(currentWord.length)}`;
       }
 
       // Format expansion for display
@@ -320,18 +312,24 @@
       const truncatedExpansion = formattedExpansion.length > 50 ? 
         formattedExpansion.substring(0, 47) + '...' : formattedExpansion;
 
+      // Get usage count
+      const usageCount = this.usageStats.get(suggestion.abbreviation) || 0;
+
       item.innerHTML = `
-        <div style="display: flex; justify-content: space-between; align-items: center;">
-          <div style="flex: 1; min-width: 0;">
-            <div style="font-weight: 500; color: #1f2937; margin-bottom: 2px;">
+        <div class="sote-autocomplete-item-content">
+          <div class="sote-autocomplete-item-main">
+            <div class="sote-autocomplete-item-abbreviation">
               ${highlightedAbbr}
             </div>
-            <div style="font-size: 12px; color: #6b7280; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-              ${truncatedExpansion}
+            <div class="sote-autocomplete-item-expansion">
+              ${this.escapeHtml(truncatedExpansion)}
             </div>
           </div>
-          <div style="margin-left: 8px; font-size: 11px; color: #9ca3af;">
-            ${suggestion.category || ''}
+          <div class="sote-autocomplete-item-meta">
+            <div class="sote-autocomplete-item-category">
+              ${this.escapeHtml(suggestion.category || 'Geral')}
+            </div>
+            ${usageCount > 0 ? `<div class="sote-autocomplete-item-usage">${usageCount}</div>` : ''}
           </div>
         </div>
       `;
@@ -344,6 +342,12 @@
       return text
         .replace(/\$cursor\$/g, '[cursor]')
         .replace(/\$transferencia\$/g, '[clipboard]');
+    }
+
+    escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
     }
 
     getCursorPosition() {
@@ -367,17 +371,19 @@
         
         // Create a temporary element to measure text position
         const temp = document.createElement('div');
+        const computedStyle = window.getComputedStyle(element);
         temp.style.cssText = `
           position: absolute;
           visibility: hidden;
           white-space: pre-wrap;
           word-wrap: break-word;
-          font-family: ${window.getComputedStyle(element).fontFamily};
-          font-size: ${window.getComputedStyle(element).fontSize};
-          line-height: ${window.getComputedStyle(element).lineHeight};
-          padding: ${window.getComputedStyle(element).padding};
-          border: ${window.getComputedStyle(element).border};
+          font-family: ${computedStyle.fontFamily};
+          font-size: ${computedStyle.fontSize};
+          line-height: ${computedStyle.lineHeight};
+          padding: ${computedStyle.padding};
+          border: ${computedStyle.border};
           width: ${element.offsetWidth}px;
+          overflow: hidden;
         `;
         
         const textBeforeCursor = element.value.substring(0, element.selectionStart);
@@ -432,11 +438,10 @@
       const items = this.popup.querySelectorAll('.sote-autocomplete-item');
       items.forEach((item, index) => {
         if (index === this.selectedIndex) {
-          item.style.backgroundColor = '#eff6ff';
-          item.style.borderColor = '#dbeafe';
+          item.classList.add('selected');
+          item.scrollIntoView({ block: 'nearest' });
         } else {
-          item.style.backgroundColor = '';
-          item.style.borderColor = '#f3f4f6';
+          item.classList.remove('selected');
         }
       });
     }
@@ -458,7 +463,10 @@
       }
       console.log('[Autocomplete DEBUG] wordStart para substituição:', wordStart);
 
-      // ... (código de atualização de uso existente) ...
+      // Update usage statistics
+      const currentUsage = this.usageStats.get(suggestion.abbreviation) || 0;
+      this.usageStats.set(suggestion.abbreviation, currentUsage + 1);
+      this.saveUsageStats();
 
       try {
         const contextualExpansionText = await window.TextExpander.getMatchingExpansion(suggestion, suggestion.rules || []); 
@@ -468,8 +476,7 @@
             await window.TextExpander.processSpecialActions(contextualExpansionText); 
         console.log('[Autocomplete DEBUG] Expansão final (após ações especiais):', finalExpansionText, 'Cursor offset:', finalCursorOffset);
 
-        // --- INÍCIO DA MODIFICAÇÃO PRINCIPAL ---
-        // Chame a nova função que encapsula a lógica de substituição para ambos os tipos de elemento
+        // Use the new unified replacement function
         const expanded = await window.TextExpander.replaceTextAtCursorWithExpansion(
             this.currentElement, 
             wordStart, 
@@ -478,7 +485,7 @@
             finalCursorOffset
         );
 
-        // Somente atualiza estatísticas se a expansão foi bem-sucedida
+        // Only update statistics if expansion was successful
         if (expanded) {
             if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
                 chrome.runtime.sendMessage({
@@ -487,7 +494,6 @@
                 });
             }
         }
-        // --- FIM DA MODIFICAÇÃO PRINCIPAL ---
 
         console.log('[Autocomplete DEBUG] Expansão concluída. Escondendo popup.');
 
@@ -511,6 +517,12 @@
         this.popup.parentNode.removeChild(this.popup);
       }
       clearTimeout(this.debounceTimer);
+      
+      // Remove CSS
+      const styles = document.querySelector('#sote-autocomplete-styles');
+      if (styles) {
+        styles.remove();
+      }
     }
 
     // Public methods for external control
