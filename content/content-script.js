@@ -59,7 +59,7 @@
       return;
     }
     try {
-      chrome.runtime.sendMessage({ type: 'GET_ABBREVIATIONS' }, response => {
+      chrome.runtime.sendMessage({ type: window.SOTE_CONSTANTS.MESSAGE_TYPES.GET_ABBREVIATIONS }, response => { // Usar constante
         if (chrome.runtime.lastError) {
           console.error("[SOTE DEBUG content-script] Erro em fetchAbbreviations sendMessage:", chrome.runtime.lastError.message);
           abbreviationsCache = [];
@@ -194,7 +194,7 @@
 
           if (chrome.runtime && chrome.runtime.sendMessage) {
             chrome.runtime.sendMessage({
-              type: 'UPDATE_USAGE',
+              type: window.SOTE_CONSTANTS.MESSAGE_TYPES.UPDATE_USAGE, // Usar constante
               abbreviation: abbr.abbreviation
             }, response => {
                 if (chrome.runtime.lastError) {
@@ -235,11 +235,11 @@
     }, 100);
 
     chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-      if (message.type === 'ABBREVIATIONS_UPDATED' || message.type === 'INITIAL_SEED_COMPLETE') {
+      if (message.type === window.SOTE_CONSTANTS.MESSAGE_TYPES.ABBREVIATIONS_UPDATED || message.type === window.SOTE_CONSTANTS.MESSAGE_TYPES.INITIAL_SEED_COMPLETE) { // Usar constante
         fetchAbbreviations();
-      } else if (message.type === 'TOGGLE_ENABLED') {
+      } else if (message.type === window.SOTE_CONSTANTS.MESSAGE_TYPES.TOGGLE_ENABLED) { // Usar constante
         isEnabled = message.enabled;
-      } else if (message.type === 'SETTINGS_UPDATED') {
+      } else if (message.type === window.SOTE_CONSTANTS.MESSAGE_TYPES.SETTINGS_UPDATED) { // Usar constante
         settings = { ...settings, ...message.settings };
         updateAutocompleteSettings();
       }

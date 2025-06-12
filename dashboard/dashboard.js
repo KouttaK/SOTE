@@ -199,6 +199,12 @@ async function init() {
     abbreviationsListElement.innerHTML = `<tr><td colspan="7" class="loading">Erro ao inicializar o banco de dados. Verifique o console.</td></tr>`;
     return;
   }
+  // Verifica se SOTE_CONSTANTS está disponível
+  if (typeof window.SOTE_CONSTANTS === 'undefined' || typeof window.SOTE_CONSTANTS.MESSAGE_TYPES === 'undefined') {
+    console.error("SOTE_CONSTANTS não foi inicializado corretamente para dashboard.js. Verifique a ordem dos scripts no HTML.");
+    abbreviationsListElement.innerHTML = `<tr><td colspan="7" class="loading">Erro ao carregar constantes. Verifique o console.</td></tr>`;
+    return;
+  }
 
   const allCategoryItem = categoryList.querySelector('[data-category="all"]');
   if (allCategoryItem) {
@@ -295,9 +301,9 @@ async function init() {
 
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     let needsReloadDueToExternalChange = false;
-    if (message.type === 'ABBREVIATIONS_UPDATED') {
+    if (message.type === window.SOTE_CONSTANTS.MESSAGE_TYPES.ABBREVIATIONS_UPDATED) { // Usar constante
       needsReloadDueToExternalChange = true;
-    } else if (message.type === 'INITIAL_SEED_COMPLETE') {
+    } else if (message.type === window.SOTE_CONSTANTS.MESSAGE_TYPES.INITIAL_SEED_COMPLETE) { // Usar constante
       if (!initialLoadDoneBySeedMessage) {
           needsReloadDueToExternalChange = true;
           initialLoadDoneBySeedMessage = true;
@@ -545,7 +551,7 @@ function handleToggleEnabled() {
     tabs.forEach(tab => {
       if (tab.id) {
         chrome.tabs.sendMessage(tab.id, {
-          type: 'TOGGLE_ENABLED',
+          type: window.SOTE_CONSTANTS.MESSAGE_TYPES.TOGGLE_ENABLED, // Usar constante
           enabled: isEnabled
         }).catch(err => { /* Ignora erro "no receiving end" */ });
       }
@@ -1151,7 +1157,7 @@ function handleSaveSettings() {
     chrome.tabs.query({}, (tabs) => {
         tabs.forEach(tab => {
           if (tab.id) {
-            chrome.tabs.sendMessage(tab.id, { type: 'SETTINGS_UPDATED', settings: settingsToSave })
+            chrome.tabs.sendMessage(tab.id, { type: window.SOTE_CONSTANTS.MESSAGE_TYPES.SETTINGS_UPDATED, settings: settingsToSave }) // Usar constante
               .catch(err => {});
           }
         });

@@ -1,7 +1,8 @@
 // SOTE-main/background/service-worker.js
 
-// Importar o script de banco de dados para o contexto do Service Worker
-importScripts('utils/db.js');
+// Importar os scripts de constantes e banco de dados para o contexto do Service Worker
+importScripts('../utils/constants.js'); // Caminho corrigido
+importScripts('../utils/db.js'); // Caminho corrigido
 
 // Initialize the database when the extension is installed
 self.addEventListener('install', (event) => {
@@ -10,8 +11,11 @@ self.addEventListener('install', (event) => {
       try {
         // Usa TextExpanderDB diretamente do escopo global do Service Worker
         const db = await TextExpanderDB.openDatabase();
-        const transaction = db.transaction(['abbreviations', 'expansionRules'], 'readwrite');
-        const store = transaction.objectStore('abbreviations');
+        const transaction = db.transaction([
+          self.SOTE_CONSTANTS.STORE_ABBREVIATIONS, // Usar constante
+          self.SOTE_CONSTANTS.STORE_RULES // Usar constante
+        ], 'readwrite');
+        const store = transaction.objectStore(self.SOTE_CONSTANTS.STORE_ABBREVIATIONS); // Usar constante
 
         const defaultAbbreviations = [
           { 
@@ -78,7 +82,7 @@ self.addEventListener('install', (event) => {
 
         console.log('Database initialization with default abbreviations checked/completed.');
 
-        chrome.runtime.sendMessage({ type: 'INITIAL_SEED_COMPLETE' }).catch(e => console.warn("Could not send INITIAL_SEED_COMPLETE message:", e));
+        chrome.runtime.sendMessage({ type: self.SOTE_CONSTANTS.MESSAGE_TYPES.INITIAL_SEED_COMPLETE }).catch(e => console.warn("Could not send INITIAL_SEED_COMPLETE message:", e));
 
       } catch (error) {
         console.error('Error initializing default abbreviations during install event:', error);
@@ -89,7 +93,7 @@ self.addEventListener('install', (event) => {
 
 // Listen for messages from content scripts
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.type === 'GET_ABBREVIATIONS') {
+  if (message.type === self.SOTE_CONSTANTS.MESSAGE_TYPES.GET_ABBREVIATIONS) { // Usar constante
     (async () => {
       try {
         const abbreviationsArray = await TextExpanderDB.getAllAbbreviations();
@@ -108,7 +112,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       }
     })();
     return true; 
-  } else if (message.type === 'UPDATE_USAGE') {
+  } else if (message.type === self.SOTE_CONSTANTS.MESSAGE_TYPES.UPDATE_USAGE) { // Usar constante
     (async () => {
       const abbreviationKey = message.abbreviation;
       if (!abbreviationKey) {
@@ -125,7 +129,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           await TextExpanderDB.updateAbbreviation(abbrData);
           
           sendResponse({ success: true });
-          chrome.runtime.sendMessage({ type: 'ABBREVIATIONS_UPDATED' })
+          chrome.runtime.sendMessage({ type: self.SOTE_CONSTANTS.MESSAGE_TYPES.ABBREVIATIONS_UPDATED }) // Usar constante
             .catch(e => console.warn("SW: Could not send ABBREVIATIONS_UPDATED after usage update:", e));
         } else {
           sendResponse({ error: 'Abbreviation not found for update.' });
@@ -146,7 +150,7 @@ chrome.storage.onChanged.addListener((changes, namespace) => {
       tabs.forEach(tab => {
         if (tab.id) { 
             chrome.tabs.sendMessage(tab.id, { 
-            type: 'ABBREVIATIONS_UPDATED' 
+            type: self.SOTE_CONSTANTS.MESSAGE_TYPES.ABBREVIATIONS_UPDATED // Usar constante
             }).catch((error) => { 
             if (error.message && !error.message.toLowerCase().includes('receiving end does not exist')) {
                 console.warn(`Erro ao enviar mensagem ABBREVIATIONS_UPDATED para tab ${tab.id}:`, error);

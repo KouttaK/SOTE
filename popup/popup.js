@@ -85,6 +85,12 @@ async function init() {
     showErrorState('Erro ao inicializar o banco de dados. Tente reabrir o popup.');
     return;
   }
+  // Verifica se SOTE_CONSTANTS está disponível
+  if (typeof window.SOTE_CONSTANTS === 'undefined' || typeof window.SOTE_CONSTANTS.MESSAGE_TYPES === 'undefined') {
+    console.error("SOTE_CONSTANTS não foi inicializado corretamente para popup.js. Verifique a ordem dos scripts no HTML.");
+    showErrorState('Erro ao carregar constantes. Tente reabrir o popup.');
+    return;
+  }
 
   await loadAbbreviations(); 
   await loadCategories(); 
@@ -137,7 +143,7 @@ async function init() {
 
   // Listen for updates
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    if (message.type === 'ABBREVIATIONS_UPDATED' || message.type === 'INITIAL_SEED_COMPLETE') {
+    if (message.type === window.SOTE_CONSTANTS.MESSAGE_TYPES.ABBREVIATIONS_UPDATED || message.type === window.SOTE_CONSTANTS.MESSAGE_TYPES.INITIAL_SEED_COMPLETE) { // Usar constantes
       performLocalRefreshPopup();
     }
     return true;
@@ -336,7 +342,7 @@ function handleToggleEnabled() {
   chrome.tabs.query({}, (tabs) => {
     tabs.forEach(tab => {
       if (tab.id) { 
-        chrome.tabs.sendMessage(tab.id, { type: 'TOGGLE_ENABLED', enabled: isEnabled })
+        chrome.tabs.sendMessage(tab.id, { type: window.SOTE_CONSTANTS.MESSAGE_TYPES.TOGGLE_ENABLED, enabled: isEnabled }) // Usar constante
           .catch(err => {});
       }
     });

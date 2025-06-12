@@ -2,10 +2,11 @@
 (function(global) { // Alterado de window para global
   'use strict';
 
-  const DB_NAME = 'textExpander';
-  const DB_VERSION = 3; // Incrementamos a versão para habilitar as migrações
-  const STORE_ABBREVIATIONS = 'abbreviations';
-  const STORE_RULES = 'expansionRules';
+  // Usa as constantes globais definidas em utils/constants.js
+  const DB_NAME = global.SOTE_CONSTANTS.DB_NAME;
+  const DB_VERSION = global.SOTE_CONSTANTS.DB_VERSION;
+  const STORE_ABBREVIATIONS = global.SOTE_CONSTANTS.STORE_ABBREVIATIONS;
+  const STORE_RULES = global.SOTE_CONSTANTS.STORE_RULES;
 
   // Objeto de migrações para gerenciar mudanças de schema
   const MIGRATIONS = {
@@ -370,7 +371,7 @@
         };
         
         transaction.oncomplete = () => {
-          chrome.runtime.sendMessage({ type: 'ABBREVIATIONS_UPDATED' }).catch(e => console.warn("SW: Could not send ABBREVIATIONS_UPDATED:", e));
+          chrome.runtime.sendMessage({ type: global.SOTE_CONSTANTS.MESSAGE_TYPES.ABBREVIATIONS_UPDATED }).catch(e => console.warn("SW: Could not send ABBREVIATIONS_UPDATED:", e));
           categoriesCache = null; // Invalida o cache de categorias
         };
       });
@@ -410,7 +411,7 @@
         };
         
         transaction.oncomplete = () => {
-          chrome.runtime.sendMessage({ type: 'ABBREVIATIONS_UPDATED' }).catch(e => console.warn("SW: Could not send ABBREVIATIONS_UPDATED:", e));
+          chrome.runtime.sendMessage({ type: global.SOTE_CONSTANTS.MESSAGE_TYPES.ABBREVIATIONS_UPDATED }).catch(e => console.warn("SW: Could not send ABBREVIATIONS_UPDATED:", e));
           categoriesCache = null; // Invalida o cache de categorias
         };
       });
@@ -449,7 +450,7 @@
         };
 
         transaction.oncomplete = () => {
-          chrome.runtime.sendMessage({ type: 'ABBREVIATIONS_UPDATED' }).catch(e => console.warn("SW: Could not send ABBREVIATIONS_UPDATED:", e));
+          chrome.runtime.sendMessage({ type: global.SOTE_CONSTANTS.MESSAGE_TYPES.ABBREVIATIONS_UPDATED }).catch(e => console.warn("SW: Could not send ABBREVIATIONS_UPDATED:", e));
           categoriesCache = null; // Invalida o cache de categorias
         };
       });
@@ -481,7 +482,7 @@
         };
         
         transaction.oncomplete = () => {
-          chrome.runtime.sendMessage({ type: 'ABBREVIATIONS_UPDATED' }).catch(e => console.warn("SW: Could not send ABBREVIATIONS_UPDATED:", e));
+          chrome.runtime.sendMessage({ type: global.SOTE_CONSTANTS.MESSAGE_TYPES.ABBREVIATIONS_UPDATED }).catch(e => console.warn("SW: Could not send ABBREVIATIONS_UPDATED:", e));
         };
       });
     },
@@ -513,7 +514,7 @@
         };
         
         transaction.oncomplete = () => {
-          chrome.runtime.sendMessage({ type: 'ABBREVIATIONS_UPDATED' }).catch(e => console.warn("SW: Could not send ABBREVIATIONS_UPDATED:", e));
+          chrome.runtime.sendMessage({ type: global.SOTE_CONSTANTS.MESSAGE_TYPES.ABBREVIATIONS_UPDATED }).catch(e => console.warn("SW: Could not send ABBREVIATIONS_UPDATED:", e));
         };
       });
     },
@@ -533,7 +534,7 @@
         };
         
         transaction.oncomplete = () => {
-          chrome.runtime.sendMessage({ type: 'ABBREVIATIONS_UPDATED' }).catch(e => console.warn("SW: Could not send ABBREVIATIONS_UPDATED:", e));
+          chrome.runtime.sendMessage({ type: global.SOTE_CONSTANTS.MESSAGE_TYPES.ABBREVIATIONS_UPDATED }).catch(e => console.warn("SW: Could not send ABBREVIATIONS_UPDATED:", e));
         };
       });
     },
@@ -603,7 +604,7 @@
         }).catch(err => reject(err));
 
         transaction.oncomplete = () => {
-          chrome.runtime.sendMessage({ type: 'ABBREVIATIONS_UPDATED' }).catch(e => console.warn("SW: Could not send ABBREVIATIONS_UPDATED:", e));
+          chrome.runtime.sendMessage({ type: global.SOTE_CONSTANTS.MESSAGE_TYPES.ABBREVIATIONS_UPDATED }).catch(e => console.warn("SW: Could not send ABBREVIATIONS_UPDATED:", e));
           categoriesCache = null; // Invalida o cache de categorias
         };
         transaction.onerror = (event) => {
@@ -628,7 +629,7 @@
         };
         
         transaction.oncomplete = () => {
-          chrome.runtime.sendMessage({ type: 'ABBREVIATIONS_UPDATED' }).catch(e => console.warn("SW: Could not send ABBREVIATIONS_UPDATED:", e));
+          chrome.runtime.sendMessage({ type: global.SOTE_CONSTANTS.MESSAGE_TYPES.ABBREVIATIONS_UPDATED }).catch(e => console.warn("SW: Could not send ABBREVIATIONS_UPDATED:", e));
           categoriesCache = null; // Invalida o cache de categorias
           resolve(importedCount);
         };
