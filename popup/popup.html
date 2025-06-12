@@ -57,7 +57,7 @@
       </div>
     </main>
     
-    <footer class="quick-add-container">
+    <footer class="quick-actions-container">
       <button id="add-btn" class="btn btn-primary" type="button">
         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <line x1="12" y1="5" x2="12" y2="19"></line>
@@ -75,103 +75,67 @@
       </button>
     </footer>
     
-    <div id="add-form" class="add-form hidden" role="dialog" aria-labelledby="form-title" aria-modal="true">
-      <div class="form-header">
-        <h2 id="form-title">Adicionar Nova Abreviação</h2>
-        <p>Crie uma nova abreviação para expandir automaticamente</p>
-      </div>
-      
-      <div class="form-content">
-        <form id="abbreviation-form" novalidate>
-          <div class="form-group">
-            <label for="new-abbreviation">
-              Abreviação
-              <span aria-hidden="true">*</span>
-            </label>
-            <input 
-              type="text" 
-              id="new-abbreviation" 
-              placeholder="Ex: tdb, vlw, pf" 
-              required 
-              aria-describedby="abbreviation-help"
-              autocomplete="off"
-              spellcheck="false"
-            >
-            <div id="abbreviation-help" class="sr-only">Digite a abreviação que será expandida</div>
-          </div>
-          
-          <div class="form-group">
-            <label for="new-expansion">
-              Expansão
-              <span aria-hidden="true">*</span>
-            </label>
-            <textarea 
-              id="new-expansion" 
-              placeholder="Ex: tudo bem, valeu, por favor" 
-              required 
-              rows="3"
-              aria-describedby="expansion-help"
-              spellcheck="false"
-            ></textarea>
-            <div id="expansion-help" class="sr-only">Digite o texto que substituirá a abreviação</div>
-            <div class="action-buttons-container">
-              <button type="button" class="btn-insert-action" data-action="$cursor$" title="Posiciona o cursor de texto aqui após a expansão">
-                📍 Posição do Cursor
-              </button>
-              <button type="button" class="btn-insert-action" data-action="$transferencia$" title="Insere o conteúdo atual da área de transferência">
-                📋 Área de Transferência
-              </button>
-            </div>
-          </div>
-          
-          <div class="form-group">
-            <label for="new-category">Categoria</label>
-            <select id="new-category" aria-describedby="category-help">
-              <option value="Comum">Comum</option>
-              <option value="Pessoal">Pessoal</option>
-              <option value="Trabalho">Trabalho</option>
-              <option value="Personalizada">Personalizada</option>
-            </select>
-            <div id="category-help" class="sr-only">Selecione uma categoria para organizar suas abreviações</div>
-          </div>
-
-          <div class="form-group" id="custom-category-group" style="display: none;">
-            <label for="new-custom-category">
-              Nome da Categoria Personalizada
-              <span aria-hidden="true">*</span>
-            </label>
-            <input 
-              type="text" 
-              id="new-custom-category" 
-              placeholder="Ex: Estudos, Jogos, Projetos"
-              autocomplete="off"
-              spellcheck="false"
-            >
-          </div>
-          
-          <div class="form-group checkbox">
-            <input type="checkbox" id="new-case-sensitive">
-            <label for="new-case-sensitive">Diferenciar maiúsculas e minúsculas</label>
-          </div>
-        </form>
-      </div>
-      
-      <div class="form-actions">
-        <button id="cancel-btn" class="btn btn-cancel" type="button">
-          Cancelar
-        </button>
-        <button id="save-btn" class="btn btn-save" type="submit" form="abbreviation-form">
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <polyline points="20,6 9,17 4,12"></polyline>
-          </svg>
-          Salvar
-        </button>
+    <div id="add-edit-modal" class="modal-container hidden" role="dialog" aria-labelledby="modal-title" aria-modal="true">
+      <div class="modal">
+        <div class="modal-header">
+            <h2 id="modal-title">Adicionar Nova Abreviação</h2>
+            <button id="modal-close-btn" class="modal-close" aria-label="Fechar modal">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+            </button>
+        </div>
+        <div class="modal-body">
+            <form id="abbreviation-form" novalidate>
+                <div class="form-group">
+                    <label for="new-abbreviation">Abreviação <span aria-hidden="true">*</span></label>
+                    <input type="text" id="new-abbreviation" placeholder="Ex: tdb, vlw, pf" required autocomplete="off" spellcheck="false">
+                </div>
+                <div class="form-group">
+                    <label for="new-expansion">Expansão <span aria-hidden="true">*</span></label>
+                    <textarea id="new-expansion" placeholder="Ex: tudo bem, valeu, por favor" required rows="3" spellcheck="false"></textarea>
+                    <div class="action-buttons-container">
+                        <button type="button" class="btn-insert-action" data-action="$cursor$" title="Posiciona o cursor de texto aqui após a expansão">📍 Posição do Cursor</button>
+                        <button type="button" class="btn-insert-action" data-action="$transferencia$" title="Insere o conteúdo atual da área de transferência">📋 Área de Transferência</button>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="new-category">Categoria</label>
+                    <select id="new-category">
+                        <option value="Comum">Comum</option>
+                        <option value="Pessoal">Pessoal</option>
+                        <option value="Trabalho">Trabalho</option>
+                        <option value="Personalizada">Personalizada</option>
+                    </select>
+                </div>
+                <div class="form-group" id="custom-category-group" style="display: none;">
+                    <label for="new-custom-category">Nome da Categoria Personalizada <span aria-hidden="true">*</span></label>
+                    <input type="text" id="new-custom-category" placeholder="Ex: Estudos, Jogos" autocomplete="off" spellcheck="false">
+                </div>
+                <div class="form-group checkbox">
+                    <input type="checkbox" id="new-case-sensitive">
+                    <label for="new-case-sensitive">Diferenciar maiúsculas e minúsculas</label>
+                </div>
+            </form>
+        </div>
+        <div class="modal-footer">
+            <button id="cancel-btn" class="btn btn-secondary" type="button">Cancelar</button>
+            <button id="save-btn" class="btn btn-primary" type="submit" form="abbreviation-form">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <polyline points="20,6 9,17 4,12"></polyline>
+                </svg>
+                Salvar
+            </button>
+        </div>
       </div>
     </div>
   </div>
   
   <script src="../utils/constants.js"></script> 
   <script src="../utils/db.js"></script>
+  <script src="../utils/notifier.js"></script>
+  <script src="../utils/confirmationModal.js"></script>
   <script src="popup.js"></script>
 </body>
 </html>

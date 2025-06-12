@@ -1,0 +1,80 @@
+/* SOTE-main/utils/notifier.css */
+#sote-notifier-container {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 99999;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  pointer-events: none; /* Allows clicks to pass through the container */
+}
+
+.sote-toast {
+  --toast-bg: #374151;
+  --toast-color: #f9fafb;
+  --toast-icon-color: #9ca3af;
+  --toast-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background-color: var(--toast-bg);
+  color: var(--toast-color);
+  padding: 14px 20px;
+  border-radius: 12px;
+  box-shadow: var(--toast-shadow);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  min-width: 250px;
+  max-width: 350px;
+  pointer-events: auto; /* Re-enable pointer events for the toast itself */
+  opacity: 0;
+  transform: translateX(calc(100% + 20px));
+  transition: all 0.4s cubic-bezier(0.21, 1.02, 0.73, 1);
+}
+
+.sote-toast.show {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.sote-toast-icon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--toast-icon-color);
+}
+
+.sote-toast-icon svg {
+  width: 20px;
+  height: 20px;
+}
+
+/* Toast Types */
+.sote-toast-success {
+  --toast-bg: #059669; /* success-600 */
+  --toast-color: #ffffff;
+  --toast-icon-color: #a7f3d0; /* success-200 */
+}
+
+.sote-toast-error {
+  --toast-bg: #dc2626; /* error-600 */
+  --toast-color: #ffffff;
+  --toast-icon-color: #fca5a5; /* error-300 */
+}
+
+.sote-toast-warning {
+  --toast-bg: #d97706; /* warning-600 */
+  --toast-color: #ffffff;
+  --toast-icon-color: #fde68a; /* warning-200 */
+}
+
+.sote-toast-info {
+  --toast-bg: #2563eb; /* primary-600 */
+  --toast-color: #ffffff;
+  --toast-icon-color: #93c5fd; /* primary-300 */
+}

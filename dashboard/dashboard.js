@@ -1,18 +1,13 @@
 // SOTE-main/dashboard/dashboard.js
 // Elementos DOM
-// Header
 const enabledToggle = document.getElementById('enabled-toggle');
 const statusText = document.getElementById('status-text');
-
-// Sidebar
 const categoryList = document.getElementById('category-list');
-
-// Content
 const searchInput = document.getElementById('search-input');
-const abbreviationsListElement = document.getElementById('abbreviations-list'); // Renomeado
+const abbreviationsListElement = document.getElementById('abbreviations-list');
 const addBtn = document.getElementById('add-btn');
 
-// Modal (Principal para adicionar/editar abreviações)
+// Modal Principal
 const modalContainer = document.getElementById('modal-container');
 const modalTitle = document.getElementById('modal-title');
 const modalClose = document.getElementById('modal-close');
@@ -48,13 +43,11 @@ const triggerTab = document.getElementById('trigger-tab');
 const triggerEnter = document.getElementById('trigger-enter');
 const settingUndo = document.getElementById('setting-undo');
 const clearDataBtn = document.getElementById('clear-data-btn');
-
-// Autocomplete Settings
 const autocompleteEnabledCheckbox = document.getElementById('autocomplete-enabled');
 const autocompleteMinCharsInput = document.getElementById('autocomplete-min-chars');
 const autocompleteMaxSuggestionsInput = document.getElementById('autocomplete-max-suggestions');
 
-// Rules Modal Elements
+// Rules Modal
 const rulesModalContainer = document.getElementById('rules-modal');
 const rulesModalTitle = document.getElementById('rules-modal-title');
 const rulesModalCloseBtn = document.getElementById('rules-modal-close');
@@ -79,76 +72,40 @@ const specialDateSection = document.getElementById('special-date-section');
 const specialMonthInput = document.getElementById('special-month');
 const specialDayInput = document.getElementById('special-day');
 const rulesModalInsertActionButtons = document.querySelectorAll('#rules-modal .btn-insert-action');
-
 const combinedRuleSection = document.getElementById('combined-rule-section');
 const combinedOperatorSelect = document.getElementById('combined-operator');
 const subConditionsList = document.getElementById('sub-conditions-list');
 const addSubConditionBtn = document.getElementById('add-sub-condition-btn');
 const subConditionTemplate = document.getElementById('sub-condition-template');
 
-// Mapeamento para tradução dos tipos de regra
-const ruleTypeTranslations = {
-  dayOfWeek: 'Dia da Semana',
-  timeRange: 'Intervalo de Horário',
-  domain: 'Domínio do Site',
-  specialDate: 'Data Especial',
-  combined: 'Combinada'
-};
+const ruleTypeTranslations = { dayOfWeek: 'Dia da Semana', timeRange: 'Intervalo de Horário', domain: 'Domínio do Site', specialDate: 'Data Especial', combined: 'Combinada' };
 
-/**
- * State
- */
+// State
 let abbreviations = [];
 let filteredAbbreviations = [];
 let currentCategory = 'all';
-let currentSort = {
-  column: 'abbreviation',
-  direction: 'asc'
-};
+let currentSort = { column: 'abbreviation', direction: 'asc' };
 let currentEditId = null;
 let isEnabled = true;
-let initialLoadDoneBySeedMessage = false;
 let currentAbbreviationIdForRules = null;
 let currentEditingRuleId = null;
 
-/**
- * Replaces action placeholders with user-friendly descriptions for display.
- * @param {string} text The raw expansion text.
- * @returns {string} The formatted text.
- */
 function formatExpansionForDisplay(text) {
   if (typeof text !== 'string') return '';
-  return text
-      .replace(/\$cursor\$/g, '[posição do cursor]')
-      .replace(/\$transferencia\$/g, '[área de transferência]');
+  return text.replace(/\$cursor\$/g, '[cursor]').replace(/\$transferencia\$/g, '[clipboard]');
 }
 
-
-/**
- * Inserts text at the current cursor position in a textarea.
- * @param {HTMLTextAreaElement} textarea The textarea element.
- * @param {string} textToInsert The text to insert.
- */
 function insertTextAtCursor(textarea, textToInsert) {
-  if (!textarea || typeof textToInsert !== 'string') { // Verifica tipos
-      console.warn('insertTextAtCursor: Invalid textarea or text to insert.');
-      return;
-  }
+  if (!textarea || typeof textToInsert !== 'string') return;
   const startPos = textarea.selectionStart;
   const endPos = textarea.selectionEnd;
-  const scrollTop = textarea.scrollTop;
-  textarea.value = textarea.value.substring(0, startPos) +
-                   textToInsert +
-                   textarea.value.substring(endPos, textarea.value.length);
-  textarea.selectionStart = startPos + textToInsert.length;
-  textarea.selectionEnd = startPos + textToInsert.length;
-  textarea.scrollTop = scrollTop;
+  textarea.value = `${textarea.value.substring(0, startPos)}${textToInsert}${textarea.value.substring(endPos)}`;
+  const newPos = startPos + textToInsert.length;
+  textarea.selectionStart = newPos;
+  textarea.selectionEnd = newPos;
   textarea.focus();
 }
 
-/**
- * Performs a local refresh of the dashboard's main data views.
- */
 async function performLocalRefresh() {
   await loadAbbreviationsAndRender();
   await loadCategories();
@@ -159,409 +116,166 @@ async function performLocalRefresh() {
 
 async function loadAbbreviationsAndRender() {
   try {
-    abbreviationsListElement.innerHTML = `
-      <tr>
-        <td colspan="7" class="loading">Carregando abreviações...</td>
-      </tr>
-    `;
-    // Assumimos que window.TextExpanderDB está carregado
+    abbreviationsListElement.innerHTML = `<tr><td colspan="7" class="loading">Carregando...</td></tr>`;
     const freshAbbreviations = await window.TextExpanderDB.getAllAbbreviations();
-    // Sempre verificar se o resultado é um array antes de atribuir
-    if (Array.isArray(freshAbbreviations)) {
-        abbreviations = freshAbbreviations;
-        filterAbbreviations();
-    } else {
-        console.error('TextExpanderDB.getAllAbbreviations did not return an array.');
-        abbreviations = []; // Define como array vazio para evitar erros
-        abbreviationsListElement.innerHTML = `
-            <tr>
-                <td colspan="7" class="loading">Formato de dados inesperado ao carregar.</td>
-            </tr>
-        `;
-    }
+    abbreviations = Array.isArray(freshAbbreviations) ? freshAbbreviations : [];
+    filterAbbreviations();
   } catch (error) {
     console.error('Erro ao carregar abreviações:', error);
-    abbreviationsListElement.innerHTML = `
-      <tr>
-        <td colspan="7" class="loading">Erro ao carregar abreviações. Por favor, tente novamente.</td>
-      </tr>
-    `;
+    abbreviationsListElement.innerHTML = `<tr><td colspan="7" class="loading">Erro ao carregar.</td></tr>`;
   }
 }
 
-/**
- * Initialize the dashboard
- */
 async function init() {
-  // Verifica se a dependência TextExpanderDB está disponível
-  if (typeof window.TextExpanderDB === 'undefined' || typeof window.TextExpanderDB.getAllAbbreviations !== 'function') {
-    console.error("TextExpanderDB não foi inicializado corretamente para dashboard.js. Verifique a ordem dos scripts no HTML.");
-    abbreviationsListElement.innerHTML = `<tr><td colspan="7" class="loading">Erro ao inicializar o banco de dados. Verifique o console.</td></tr>`;
-    return;
-  }
-  // Verifica se SOTE_CONSTANTS está disponível
-  if (typeof window.SOTE_CONSTANTS === 'undefined' || typeof window.SOTE_CONSTANTS.MESSAGE_TYPES === 'undefined') {
-    console.error("SOTE_CONSTANTS não foi inicializado corretamente para dashboard.js. Verifique a ordem dos scripts no HTML.");
-    abbreviationsListElement.innerHTML = `<tr><td colspan="7" class="loading">Erro ao carregar constantes. Verifique o console.</td></tr>`;
+  if (typeof window.TextExpanderDB === 'undefined' || typeof SoteNotifier === 'undefined' || typeof SoteConfirmationModal === 'undefined') {
+    console.error("Dependências não carregadas.");
     return;
   }
 
-  const allCategoryItem = categoryList.querySelector('[data-category="all"]');
-  if (allCategoryItem) {
-    allCategoryItem.addEventListener('click', () => handleCategoryFilter('all'));
-  }
-
+  categoryList.querySelector('[data-category="all"]').addEventListener('click', () => handleCategoryFilter('all'));
   searchInput.addEventListener('input', handleSearch);
   enabledToggle.addEventListener('change', handleToggleEnabled);
   addBtn.addEventListener('click', () => showModal());
   modalClose.addEventListener('click', hideModal);
   modalCancel.addEventListener('click', hideModal);
   modalSave.addEventListener('click', handleSaveAbbreviation);
-
-  mainModalInsertActionButtons.forEach(button => {
-    button.addEventListener('click', function() {
-        const action = this.dataset.action;
-        insertTextAtCursor(expansionTextarea, action);
-    });
-  });
-  
-  rulesModalInsertActionButtons.forEach(button => {
-      button.addEventListener('click', function() {
-          const action = this.dataset.action;
-          insertTextAtCursor(ruleExpansionTextarea, action);
-      });
-  });
-
-  document.querySelectorAll('.abbreviations-table th.sortable').forEach(header => {
-    header.addEventListener('click', () => {
-      const column = header.getAttribute('data-sort');
-      handleSort(column);
-    });
-  });
-
-  categorySelect.addEventListener('change', function() {
-    customCategoryInputContainer.style.display = (this.value === 'Personalizada') ? 'block' : 'none';
-    if (this.value !== 'Personalizada') {
-        customCategoryInput.value = '';
-    } else {
-        customCategoryInput.focus();
-    }
-  });
-
+  mainModalInsertActionButtons.forEach(button => button.addEventListener('click', function() { insertTextAtCursor(expansionTextarea, this.dataset.action); }));
+  rulesModalInsertActionButtons.forEach(button => button.addEventListener('click', function() { insertTextAtCursor(ruleExpansionTextarea, this.dataset.action); }));
+  document.querySelectorAll('.abbreviations-table th.sortable').forEach(header => header.addEventListener('click', () => handleSort(header.dataset.sort)));
+  categorySelect.addEventListener('change', function() { customCategoryInputContainer.style.display = (this.value === 'Personalizada') ? 'block' : 'none'; });
   importBtn.addEventListener('click', showImportModal);
   exportBtn.addEventListener('click', handleExport);
   importModalClose.addEventListener('click', hideImportModal);
   importModalCancel.addEventListener('click', hideImportModal);
   importModalImport.addEventListener('click', handleImport);
-
   settingsBtn.addEventListener('click', showSettingsModal);
   settingsModalClose.addEventListener('click', hideSettingsModal);
   settingsModalCancel.addEventListener('click', hideSettingsModal);
   settingsModalSave.addEventListener('click', handleSaveSettings);
   clearDataBtn.addEventListener('click', handleClearData);
-
-  // Rules Modal Listeners
   rulesModalCloseBtn.addEventListener('click', hideRulesModal);
-  rulesModalCancelBtn.addEventListener('click', () => {
-    if (!ruleForm.classList.contains('hidden')) {
-      ruleForm.classList.add('hidden');
-      addRuleBtn.classList.remove('hidden');
-    } else {
-      hideRulesModal();
-    }
-  });
+  rulesModalCancelBtn.addEventListener('click', () => { ruleForm.classList.contains('hidden') ? hideRulesModal() : (ruleForm.classList.add('hidden'), addRuleBtn.classList.remove('hidden')); });
   addRuleBtn.addEventListener('click', handleShowRuleForm);
   ruleTypeSelect.addEventListener('change', handleRuleTypeChange);
   rulesModalSaveBtn.addEventListener('click', handleSaveRule);
-
-  if (addSubConditionBtn) {
-    addSubConditionBtn.addEventListener('click', () => handleAddSubCondition(null));
-  }
-
-  if (subConditionsList) {
-    subConditionsList.addEventListener('click', (event) => {
-      if (event.target.classList.contains('remove-sub-condition-btn')) {
-        event.target.closest('.sub-condition-item').remove();
-      }
-      if (event.target.classList.contains('sub-condition-type')) {
-          renderSubConditionFields(event.target.value, event.target.closest('.sub-condition-item').querySelector('.sub-condition-fields'), null);
-      }
-    });
-  }
-
-  chrome.storage.sync.get('enabled', (result) => {
-    if (result.hasOwnProperty('enabled')) {
-      isEnabled = result.enabled;
-      enabledToggle.checked = isEnabled;
-      statusText.textContent = isEnabled ? 'Habilitado' : 'Disabilitado';
-    }
+  addSubConditionBtn?.addEventListener('click', () => handleAddSubCondition(null));
+  subConditionsList?.addEventListener('click', (event) => {
+    if (event.target.classList.contains('remove-sub-condition-btn')) event.target.closest('.sub-condition-item').remove();
+    if (event.target.classList.contains('sub-condition-type')) renderSubConditionFields(event.target.value, event.target.closest('.sub-condition-item').querySelector('.sub-condition-fields'), null);
   });
-
+  
+  chrome.storage.sync.get('enabled', (result) => {
+    isEnabled = result.enabled !== false;
+    enabledToggle.checked = isEnabled;
+    statusText.textContent = isEnabled ? 'Habilitado' : 'Disabilitado';
+  });
   loadSettings();
-
-  chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    let needsReloadDueToExternalChange = false;
-    if (message.type === window.SOTE_CONSTANTS.MESSAGE_TYPES.ABBREVIATIONS_UPDATED) { // Usar constante
-      needsReloadDueToExternalChange = true;
-    } else if (message.type === window.SOTE_CONSTANTS.MESSAGE_TYPES.INITIAL_SEED_COMPLETE) { // Usar constante
-      if (!initialLoadDoneBySeedMessage) {
-          needsReloadDueToExternalChange = true;
-          initialLoadDoneBySeedMessage = true;
-      }
-    }
-
-    if (needsReloadDueToExternalChange) {
-      console.log('[Dashboard] ABBREVIATIONS_UPDATED ou INITIAL_SEED_COMPLETE recebido, chamando performLocalRefresh.');
-      performLocalRefresh().catch(error => {
-        console.error("Erro durante o performLocalRefresh acionado por mensagem:", error);
-      });
+  
+  chrome.runtime.onMessage.addListener((message) => {
+    if (message.type === SOTE_CONSTANTS.MESSAGE_TYPES.ABBREVIATIONS_UPDATED || message.type === SOTE_CONSTANTS.MESSAGE_TYPES.INITIAL_SEED_COMPLETE) {
+      performLocalRefresh();
     }
     return true;
   });
   await performLocalRefresh();
 }
 
-async function loadAbbreviations() {
-  try {
-    abbreviations = await window.TextExpanderDB.getAllAbbreviations();
-    filterAbbreviations();
-  } catch (error) {
-    console.error('Erro ao carregar abreviações:', error);
-    abbreviationsListElement.innerHTML = `
-      <tr>
-        <td colspan="7" class="loading">Erro ao carregar abreviações. Por favor, tente novamente.</td>
-      </tr>
-    `;
-  }
-}
-
 async function loadCategories() {
   try {
-    const categories = await window.TextExpanderDB.getAllCategories();
-
+    const categories = await TextExpanderDB.getAllCategories();
     const allCategoryItem = categoryList.querySelector('[data-category="all"]');
     categoryList.innerHTML = '';
     if (allCategoryItem) categoryList.appendChild(allCategoryItem);
-
     categories.forEach(category => {
       const li = document.createElement('li');
       li.className = 'category-item';
-      li.setAttribute('data-category', category);
+      li.dataset.category = category;
       li.textContent = category;
       li.addEventListener('click', () => handleCategoryFilter(category));
       categoryList.appendChild(li);
     });
-
-    const existingCustomOptions = Array.from(categorySelect.options).filter(opt => !['Comum', 'Pessoal', 'Trabalho', 'Personalizada'].includes(opt.value));
-    existingCustomOptions.forEach(opt => categorySelect.removeChild(opt));
-
     const personalizadaOption = categorySelect.querySelector('option[value="Personalizada"]');
-    const currentCategoryOptions = new Set(Array.from(categorySelect.options).map(opt => opt.value));
-
+    Array.from(categorySelect.options).filter(opt => !['Comum', 'Pessoal', 'Trabalho', 'Personalizada'].includes(opt.value)).forEach(opt => categorySelect.removeChild(opt));
     categories.forEach(category => {
-      if (!currentCategoryOptions.has(category)) {
+      if (!categorySelect.querySelector(`option[value="${category}"]`)) {
         const option = document.createElement('option');
         option.value = category;
         option.textContent = category;
-        if (personalizadaOption) {
-          categorySelect.insertBefore(option, personalizadaOption);
-        } else {
-          categorySelect.appendChild(option);
-        }
-        currentCategoryOptions.add(category);
+        categorySelect.insertBefore(option, personalizadaOption);
       }
     });
-
-    customCategoryInputContainer.style.display = (categorySelect.value === 'Personalizada') ? 'block' : 'none';
   } catch (error) {
     console.error('Erro ao carregar categorias:', error);
   }
 }
+
 function filterAbbreviations() {
   const searchTerm = searchInput.value.trim().toLowerCase();
-
-  filteredAbbreviations = abbreviations.filter(abbr => {
-    const categoryMatch = currentCategory === 'all' || abbr.category === currentCategory;
-    const searchMatch = searchTerm === '' ||
-                       abbr.abbreviation.toLowerCase().includes(searchTerm) ||
-                       abbr.expansion.toLowerCase().includes(searchTerm) ||
-                       (abbr.category && abbr.category.toLowerCase().includes(searchTerm));
-    return categoryMatch && searchMatch;
-  });
-
+  filteredAbbreviations = abbreviations.filter(abbr => 
+    (currentCategory === 'all' || abbr.category === currentCategory) &&
+    (searchTerm === '' || abbr.abbreviation.toLowerCase().includes(searchTerm) || abbr.expansion.toLowerCase().includes(searchTerm) || (abbr.category && abbr.category.toLowerCase().includes(searchTerm)))
+  );
   sortAbbreviations();
   renderAbbreviations();
 }
 
 function sortAbbreviations() {
   const { column, direction } = currentSort;
-
   filteredAbbreviations.sort((a, b) => {
-    let valueA = a[column];
-    let valueB = b[column];
-
+    let valueA = a[column], valueB = b[column];
     if (column === 'lastUsed') {
-      valueA = valueA ? new Date(valueA).getTime() : (direction === 'asc' ? Infinity : -Infinity) ;
+      valueA = valueA ? new Date(valueA).getTime() : (direction === 'asc' ? Infinity : -Infinity);
       valueB = valueB ? new Date(valueB).getTime() : (direction === 'asc' ? Infinity : -Infinity);
-    } else if (column === 'usageCount') {
-        valueA = Number(valueA) || 0;
-        valueB = Number(valueB) || 0;
     } else if (typeof valueA === 'string') {
       valueA = valueA.toLowerCase();
       valueB = valueB.toLowerCase();
-    } else if (valueA === null || valueA === undefined) {
-        valueA = (direction === 'asc' ? Infinity : -Infinity);
-    } else if (valueB === null || valueB === undefined) {
-        valueB = (direction === 'asc' ? Infinity : -Infinity);
     }
-
-    if (valueA === valueB) {
-      return a.abbreviation.toLowerCase().localeCompare(b.abbreviation.toLowerCase());
-    }
-
-    if (direction === 'asc') {
-      return valueA < valueB ? -1 : 1;
-    } else {
-      return valueA > valueB ? -1 : 1;
-    }
+    if (valueA === valueB) return a.abbreviation.toLowerCase().localeCompare(b.abbreviation.toLowerCase());
+    let comparison = valueA < valueB ? -1 : 1;
+    return direction === 'asc' ? comparison : -comparison;
   });
 }
 
 function renderAbbreviations() {
-  if (filteredAbbreviations.length === 0 && abbreviations.length > 0 && searchInput.value.trim() !== '') {
-     abbreviationsListElement.innerHTML = `
-      <tr>
-        <td colspan="7" class="loading">Nenhuma abreviação encontrada para "${searchInput.value}".</td>
-      </tr>
-    `;
-    return;
-  }
   if (filteredAbbreviations.length === 0) {
-    abbreviationsListElement.innerHTML = `
-      <tr>
-        <td colspan="7" class="loading">Nenhuma abreviação cadastrada ou correspondente ao filtro.</td>
-      </tr>
-    `;
+    abbreviationsListElement.innerHTML = `<tr><td colspan="7" class="loading">Nenhuma abreviação encontrada.</td></tr>`;
     return;
   }
-
   abbreviationsListElement.innerHTML = '';
-
   filteredAbbreviations.forEach(abbr => {
     const row = document.createElement('tr');
-    let lastUsedText = 'Sem uso';
-    if (abbr.lastUsed) {
-      try {
-        const date = new Date(abbr.lastUsed);
-        lastUsedText = date.toLocaleString('pt-BR');
-      } catch (e) {
-        lastUsedText = abbr.lastUsed;
-      }
-    }
-    
-    // Formata a expansão para exibição amigável
+    let lastUsedText = abbr.lastUsed ? new Date(abbr.lastUsed).toLocaleString('pt-BR') : 'Nunca';
     const formattedExpansion = formatExpansionForDisplay(abbr.expansion);
-    const expansionDisplay = formattedExpansion.length > 50 ? formattedExpansion.substring(0, 47) + '...' : formattedExpansion;
-
+    const expansionDisplay = formattedExpansion.length > 50 ? `${formattedExpansion.substring(0, 47)}...` : formattedExpansion;
     row.innerHTML = `
       <td>${abbr.abbreviation}</td>
       <td title="${formattedExpansion}">${expansionDisplay}</td>
-      <td><span class="category-badge">${abbr.category || 'Sem categoria'}</span></td>
+      <td><span class="category-badge">${abbr.category || 'N/A'}</span></td>
       <td>${abbr.usageCount || 0}</td>
       <td>${lastUsedText}</td>
-      <td>${abbr.rules && abbr.rules.length > 0 ? abbr.rules.length : 0}</td>
-      <td>
-        <div class="table-actions">
-          <button class="action-btn edit" data-id="${abbr.abbreviation}" title="Editar Abreviação">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M12 20h9"></path>
-              <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
-            </svg>
-          </button>
-          <button class="action-btn rules" data-id="${abbr.abbreviation}" title="Gerenciar Regras">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M15 14c.2-1 .7-1.7 1.5-2.5C17.3 10.7 18 9.8 18 9c0-.8-.3-1.6-.8-2.3-.5-.7-1.1-1.2-1.9-1.5C14.5 4.8 13.3 5 12.4 5.5c-.8.5-1.4 1.2-1.8 2.1-.4.9-.4 2.1.1 3.1.5.9 1.2 1.6 2 2.1.2.2.4.3.6.4V14z"></path>
-              <path d="M9 18c-4.51 2-5-2-7-2"></path>
-              <path d="M14 22c-4.51 2-5-2-7-2"></path>
-              <path d="M22 18h-2c-1.33 0-2.67.33-3.8.66"></path>
-              <path d="M20 22h-2c-1.33 0-2.67.33-3.8.66"></path>
-            </svg>
-          </button>
-          <button class="action-btn delete" data-id="${abbr.abbreviation}" title="Excluir Abreviação">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M3 6h18"></path>
-              <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
-              <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
-            </svg>
-          </button>
-        </div>
-      </td>
-    `;
-
-    const editBtnElement = row.querySelector('.edit');
-    const deleteBtnElement = row.querySelector('.delete');
-    const rulesBtnElement = row.querySelector('.rules');
-
-    editBtnElement.addEventListener('click', () => handleEditAbbreviation(abbr));
-    deleteBtnElement.addEventListener('click', () => handleDeleteAbbreviation(abbr.abbreviation));
-    rulesBtnElement.addEventListener('click', () => showRulesModal(abbr.abbreviation));
-
+      <td>${abbr.rules?.length || 0}</td>
+      <td><div class="table-actions">
+          <button class="action-btn edit" title="Editar"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg></button>
+          <button class="action-btn rules" title="Regras"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 14c.2-1 .7-1.7 1.5-2.5C17.3 10.7 18 9.8 18 9a2.3 2.3 0 0 0-.8-2.3c-.5-.7-1.1-1.2-1.9-1.5-1.6-.4-3.2.3-4.2 1.5-1 1.2-1.2 2.8-.5 4.1.2.5.5 1 .8 1.4V14zM9 18c-4.51 2-5-2-7-2m18 0c-4.51 2-5-2-7-2m-4 4c-4.51 2-5-2-7-2m18 0c-4.51 2-5-2-7-2"/></svg></button>
+          <button class="action-btn delete" title="Excluir"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18m-2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3-2V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
+      </div></td>`;
+    row.querySelector('.edit').addEventListener('click', () => handleEditAbbreviation(abbr));
+    row.querySelector('.delete').addEventListener('click', () => handleDeleteAbbreviation(abbr.abbreviation));
+    row.querySelector('.rules').addEventListener('click', () => showRulesModal(abbr.abbreviation));
     abbreviationsListElement.appendChild(row);
   });
-
   document.querySelectorAll('.abbreviations-table th.sortable').forEach(header => {
     header.classList.remove('sorted-asc', 'sorted-desc');
-    const column = header.getAttribute('data-sort');
-    if (column === currentSort.column) {
-      header.classList.add(`sorted-${currentSort.direction}`);
-    }
+    if (header.dataset.sort === currentSort.column) header.classList.add(`sorted-${currentSort.direction}`);
   });
 }
 
-function handleSearch() {
-  filterAbbreviations();
-}
-
-function handleCategoryFilter(category) {
-  currentCategory = category;
-  document.querySelectorAll('.category-item').forEach(item => {
-    item.classList.remove('active');
-    if (item.getAttribute('data-category') === category) {
-      item.classList.add('active');
-    }
-  });
-  filterAbbreviations();
-}
-
-function handleSort(column) {
-  if (currentSort.column === column) {
-    currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
-  } else {
-    currentSort.column = column;
-    currentSort.direction = 'asc';
-  }
-  filterAbbreviations();
-}
-
-function handleToggleEnabled() {
-  isEnabled = enabledToggle.checked;
-  statusText.textContent = isEnabled ? 'Habilitado' : 'Disabilitado';
-  chrome.storage.sync.set({ enabled: isEnabled });
-  chrome.tabs.query({}, (tabs) => {
-    tabs.forEach(tab => {
-      if (tab.id) {
-        chrome.tabs.sendMessage(tab.id, {
-          type: window.SOTE_CONSTANTS.MESSAGE_TYPES.TOGGLE_ENABLED, // Usar constante
-          enabled: isEnabled
-        }).catch(err => { /* Ignora erro "no receiving end" */ });
-      }
-    });
-  });
-}
+function handleSearch() { filterAbbreviations(); }
+function handleCategoryFilter(category) { currentCategory = category; document.querySelectorAll('.category-item').forEach(item => item.classList.toggle('active', item.dataset.category === category)); filterAbbreviations(); }
+function handleSort(column) { if (currentSort.column === column) currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc'; else { currentSort.column = column; currentSort.direction = 'asc'; } filterAbbreviations(); }
+function handleToggleEnabled() { isEnabled = enabledToggle.checked; statusText.textContent = isEnabled ? 'Habilitado' : 'Disabilitado'; chrome.storage.sync.set({ enabled: isEnabled }); }
 
 function showModal(abbr = null) {
-  modalContainer.classList.remove('hidden');
-
   if (abbr) {
     modalTitle.textContent = 'Editar Abreviação';
     abbreviationInput.value = abbr.abbreviation;
@@ -570,36 +284,15 @@ function showModal(abbr = null) {
     caseSensitiveCheckbox.checked = abbr.caseSensitive || false;
     enabledCheckbox.checked = abbr.enabled !== false;
     currentEditId = abbr.abbreviation;
-
-    const standardCategoriesAndPersonalizada = ['Comum', 'Pessoal', 'Trabalho', 'Personalizada'];
-    if (abbr.category && !standardCategoriesAndPersonalizada.includes(abbr.category) && !categorySelect.querySelector(`option[value="${abbr.category}"]`)) {
-      let tempOption = categorySelect.querySelector(`option[value="${abbr.category}"]`);
-      if (!tempOption) {
-          tempOption = document.createElement('option');
-          tempOption.value = abbr.category;
-          tempOption.textContent = abbr.category;
-          const personalizadaOpt = categorySelect.querySelector('option[value="Personalizada"]');
-          if (personalizadaOpt) {
-              categorySelect.insertBefore(tempOption, personalizadaOpt);
-          } else {
-              categorySelect.appendChild(tempOption);
-          }
+    if (abbr.category && !['Comum', 'Pessoal', 'Trabalho', 'Personalizada'].includes(abbr.category)) {
+      if (!categorySelect.querySelector(`option[value="${abbr.category}"]`)) {
+          const opt = document.createElement('option');
+          opt.value = abbr.category; opt.textContent = abbr.category;
+          categorySelect.insertBefore(opt, categorySelect.querySelector('option[value="Personalizada"]'));
       }
       categorySelect.value = abbr.category;
-      customCategoryInputContainer.style.display = 'none';
-      customCategoryInput.value = '';
-    } else if (abbr.category && categorySelect.querySelector(`option[value="${abbr.category}"]`)) {
-      categorySelect.value = abbr.category;
-      customCategoryInputContainer.style.display = (abbr.category === 'Personalizada' && !customCategoryInput.value) ? 'block' : 'none';
-       if(categorySelect.value === 'Personalizada' && abbr.category !== 'Personalizada'){
-           customCategoryInput.value = abbr.category;
-       } else if (categorySelect.value !== 'Personalizada') {
-           customCategoryInput.value = '';
-       }
     } else {
       categorySelect.value = abbr.category || 'Comum';
-      customCategoryInputContainer.style.display = 'none';
-      customCategoryInput.value = '';
     }
   } else {
     modalTitle.textContent = 'Adicionar Nova Abreviação';
@@ -610,573 +303,197 @@ function showModal(abbr = null) {
     caseSensitiveCheckbox.checked = false;
     enabledCheckbox.checked = true;
     currentEditId = null;
-    customCategoryInputContainer.style.display = 'none';
-    customCategoryInput.value = '';
   }
+  customCategoryInputContainer.style.display = 'none';
+  customCategoryInput.value = '';
+  modalContainer.classList.remove('hidden');
   abbreviationInput.focus();
 }
 
-function hideModal() {
-  modalContainer.classList.add('hidden');
-  currentEditId = null;
-}
+function hideModal() { modalContainer.classList.add('hidden'); currentEditId = null; }
 
 async function handleSaveAbbreviation() {
   const abbreviationVal = abbreviationInput.value.trim();
   const expansionVal = expansionTextarea.value.trim();
   let categoryVal = categorySelect.value;
-  const caseSensitiveVal = caseSensitiveCheckbox.checked;
-  const enabledVal = enabledCheckbox.checked;
-
-  if (!abbreviationVal || !expansionVal) {
-    alert('Por favor, insira a abreviação e a expansão.');
-    return;
-  }
-
+  if (!abbreviationVal || !expansionVal) { SoteNotifier.show('Abreviação e expansão são obrigatórias.', 'error'); return; }
   if (categoryVal === 'Personalizada') {
-    const customCatName = customCategoryInput.value.trim();
-    if (!customCatName) {
-      alert('Por favor, insira o nome da categoria personalizada.');
-      customCategoryInput.focus();
-      return;
-    }
-    categoryVal = customCatName;
+    categoryVal = customCategoryInput.value.trim();
+    if (!categoryVal) { SoteNotifier.show('Nome da categoria personalizada é obrigatório.', 'error'); return; }
   }
-
   try {
-    const abbrData = {
-      abbreviation: abbreviationVal,
-      expansion: expansionVal,
-      category: categoryVal,
-      caseSensitive: caseSensitiveVal,
-      enabled: enabledVal
-    };
-
-    let operationSuccess = false;
-    if (currentEditId) {
-      // Ao editar, o ID já existe e é a chave. Não precisamos buscar novamente.
-      // O `updateAbbreviation` em `db.js` agora busca o item existente e mescla.
-       await window.TextExpanderDB.updateAbbreviation(abbrData);
-       operationSuccess = true;
-    } else {
-      // Ao adicionar, a validação de unicidade de chave é feita pelo IndexedDB e `addAbbreviation`
-      // irá lançar erro se a chave já existir.
-        await window.TextExpanderDB.addAbbreviation(abbrData);
-        operationSuccess = true;
-    }
-
-    if (operationSuccess) {
-        hideModal();
-        await performLocalRefresh();
-    }
+    const abbrData = { abbreviation: abbreviationVal, expansion: expansionVal, category: categoryVal, caseSensitive: caseSensitiveCheckbox.checked, enabled: enabledCheckbox.checked };
+    await (currentEditId ? window.TextExpanderDB.updateAbbreviation(abbrData) : window.TextExpanderDB.addAbbreviation(abbrData));
+    hideModal();
+    SoteNotifier.show(currentEditId ? 'Abreviação atualizada!' : 'Abreviação criada!', 'success');
+    await performLocalRefresh();
   } catch (error) {
-    console.error('Erro ao salvar abreviação:', error);
-    // Verifique se o erro é de chave duplicada ou de validação
-    if (error.message && error.message.toLowerCase().includes('key already exists')) {
-        alert(`Erro: A abreviação "${abbreviationVal}" já existe.`);
-    } else if (error.message && error.message.includes('Validation Error:')) {
-        alert(`Erro de validação: ${error.message}`);
-    }
-    else {
-        alert('Erro ao salvar abreviação. Por favor, tente novamente.');
-    }
+    console.error('Erro ao salvar:', error);
+    SoteNotifier.show(error.message.includes('Key already exists') ? `A abreviação "${abbreviationVal}" já existe.` : 'Erro ao salvar.', 'error');
   }
 }
 
-function handleEditAbbreviation(abbr) {
-  showModal(abbr);
-}
+function handleEditAbbreviation(abbr) { showModal(abbr); }
 async function handleDeleteAbbreviation(abbreviationKey) {
-  if (confirm(`Tem certeza que deseja excluir a abreviação "${abbreviationKey}" e todas as suas regras associadas?`)) {
-    try {
-      // deleteAbbreviation agora também remove regras associadas
-      await window.TextExpanderDB.deleteAbbreviation(abbreviationKey);
-      await performLocalRefresh();
-    } catch (error) {
-      console.error('Erro ao excluir abreviação:', error);
-      alert('Erro ao excluir abreviação. Por favor, tente novamente.');
+  SoteConfirmationModal.show({
+    title: 'Excluir Abreviação',
+    message: `Tem certeza que quer excluir "<strong>${abbreviationKey}</strong>" e todas as suas regras? A ação não pode ser desfeita.`,
+    onConfirm: async () => {
+      try {
+        await window.TextExpanderDB.deleteAbbreviation(abbreviationKey);
+        SoteNotifier.show('Abreviação excluída.', 'success');
+        await performLocalRefresh();
+      } catch (error) { console.error('Erro ao excluir:', error); SoteNotifier.show('Erro ao excluir.', 'error'); }
     }
-  }
+  });
 }
 
 function showRulesModal(abbreviationId) {
   currentAbbreviationIdForRules = abbreviationId;
   const abbrObj = abbreviations.find(a => a.abbreviation === abbreviationId);
-  rulesModalTitle.textContent = `Regras para "${abbrObj ? abbrObj.abbreviation : abbreviationId}"`;
+  rulesModalTitle.textContent = `Regras para "${abbrObj ? abbrObj.abbreviation : ''}"`;
   rulesModalContainer.classList.remove('hidden');
-  ruleForm.classList.add('hidden');
-  addRuleBtn.classList.remove('hidden');
-  currentEditingRuleId = null;
   resetRuleForm();
   loadAndDisplayRules(abbreviationId);
 }
 
-function hideRulesModal() {
-  rulesModalContainer.classList.add('hidden');
-  currentAbbreviationIdForRules = null;
-  currentEditingRuleId = null;
-  resetRuleForm();
-}
+function hideRulesModal() { rulesModalContainer.classList.add('hidden'); currentAbbreviationIdForRules = null; currentEditingRuleId = null; }
 
 function loadAndDisplayRules(abbreviationId) {
-  const abbreviation = abbreviations.find(abbr => abbr.abbreviation === abbreviationId);
-  rulesListDisplayElement.innerHTML = '';
-
-  if (!abbreviation || !abbreviation.rules || abbreviation.rules.length === 0) {
-    rulesListDisplayElement.innerHTML = '<p>Nenhuma regra definida para esta abreviação.</p>';
-    return;
-  }
-
-  const sortedRules = [...abbreviation.rules].sort((a, b) => (b.priority || 0) - (a.priority || 0));
-
-  sortedRules.forEach(rule => {
-    const ruleItem = document.createElement('div');
-    ruleItem.className = 'rule-item';
-    let details = '';
-    const ruleTypeDisplay = ruleTypeTranslations[rule.type] || (rule.type.charAt(0).toUpperCase() + rule.type.slice(1));
-
-    switch (rule.type) {
-      case 'dayOfWeek':
-        const daysMap = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
-        details = `Dias: ${rule.days ? rule.days.map(d => daysMap[d]).join(', ') : 'N/A'}`;
-        break;
-      case 'timeRange':
-        const startHrStr = String(rule.startHour).padStart(2, '0');
-        const startMinStr = String(rule.startMinute !== undefined ? rule.startMinute : '00').padStart(2, '0');
-        const endHrStr = String(rule.endHour).padStart(2, '0');
-        const endMinStr = String(rule.endMinute !== undefined ? rule.endMinute : '00').padStart(2, '0');
-        details = `Horário: ${startHrStr}:${startMinStr} - ${endHrStr}:${endMinStr}`;
-        break;
-      case 'domain':
-        details = `Domínios: ${rule.domains ? rule.domains.join(', ') : 'N/A'}`;
-        break;
-      case 'specialDate':
-        details = `Data Especial: ${String(rule.day).padStart(2, '0')}/${String(rule.month).padStart(2, '0')}`;
-        break;
-      case 'combined':
-        let subConditionsText = (rule.subConditions && rule.subConditions.length > 0)
-          ? rule.subConditions.map(sc =>
-              `${sc.negated ? 'NÃO ' : ''}(${ruleTypeTranslations[sc.conditionType] || sc.conditionType}${getDetailForSubType(sc)})`
-            ).join(` ${rule.logicalOperator === 'AND' ? 'E' : 'OU'} `)
-          : 'Nenhuma sub-condição';
-        details = `Combinada (${rule.logicalOperator === 'AND' ? 'E' : 'OU'}): ${subConditionsText}`;
-        break;
-      default:
-        console.warn('Tipo de regra desconhecido para exibição:', rule.type); // Adicionado log
-        details = `Tipo: ${ruleTypeDisplay}`;
+    const abbreviation = abbreviations.find(abbr => abbr.abbreviation === abbreviationId);
+    rulesListDisplayElement.innerHTML = '';
+    if (!abbreviation || !abbreviation.rules || abbreviation.rules.length === 0) {
+        rulesListDisplayElement.innerHTML = '<p>Nenhuma regra definida.</p>';
+        return;
     }
-
-    const formattedRuleExpansion = formatExpansionForDisplay(rule.expansion);
-
-    ruleItem.innerHTML = `
-      <div class="rule-header">
-        <span class="rule-type">Prioridade: ${rule.priority || 0} - ${ruleTypeDisplay}</span>
-        <div class="rule-actions">
-          <button class="action-btn edit-rule" title="Editar Regra">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
-          </button>
-          <button class="action-btn delete-rule" title="Excluir Regra">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path></svg>
-          </button>
-        </div>
-      </div>
-      <div class="rule-details">${details}</div>
-      <div class="rule-expansion">Expansão: <strong>${formattedRuleExpansion}</strong></div>
-    `;
-
-    rulesListDisplayElement.appendChild(ruleItem);
-
-    const editButton = ruleItem.querySelector('.edit-rule');
-    if (editButton) editButton.addEventListener('click', () => handleEditRule(rule));
-
-    const deleteButton = ruleItem.querySelector('.delete-rule');
-    if (deleteButton) deleteButton.addEventListener('click', () => handleDeleteRule(rule.id));
-  });
+    const sortedRules = [...abbreviation.rules].sort((a, b) => (b.priority || 0) - (a.priority || 0));
+    sortedRules.forEach(rule => {
+        const ruleItem = document.createElement('div');
+        ruleItem.className = 'rule-item';
+        let details = '';
+        switch (rule.type) {
+            case 'dayOfWeek': details = `Dias: ${rule.days?.map(d => ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'][d]).join(', ') || 'N/A'}`; break;
+            case 'timeRange': details = `Horário: ${String(rule.startHour).padStart(2,'0')}:${String(rule.startMinute).padStart(2,'0')} - ${String(rule.endHour).padStart(2,'0')}:${String(rule.endMinute).padStart(2,'0')}`; break;
+            case 'domain': details = `Domínios: ${rule.domains?.join(', ') || 'N/A'}`; break;
+            case 'specialDate': details = `Data: ${String(rule.day).padStart(2,'0')}/${String(rule.month).padStart(2,'0')}`; break;
+            case 'combined': details = `Combinada (${rule.logicalOperator}): ${rule.subConditions?.map(sc => `${sc.negated ? 'NÃO ' : ''}${ruleTypeTranslations[sc.conditionType]}`).join(', ') || 'N/A'}`; break;
+        }
+        ruleItem.innerHTML = `
+            <div class="rule-header"><span class="rule-type">Prioridade ${rule.priority || 0} - ${ruleTypeTranslations[rule.type]}</span><div class="rule-actions">
+            <button class="action-btn edit-rule"><svg xmlns="http://www.w3.org/2000/svg" width="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg></button>
+            <button class="action-btn delete-rule"><svg xmlns="http://www.w3.org/2000/svg" width="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18m-2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3-2V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
+            </div></div><div class="rule-details">${details}</div><div class="rule-expansion">Expansão: <strong>${formatExpansionForDisplay(rule.expansion)}</strong></div>`;
+        ruleItem.querySelector('.edit-rule').addEventListener('click', () => handleEditRule(rule));
+        ruleItem.querySelector('.delete-rule').addEventListener('click', () => handleDeleteRule(rule.id));
+        rulesListDisplayElement.appendChild(ruleItem);
+    });
 }
 
-function getDetailForSubType(subCond) {
-    switch(subCond.conditionType) {
-        case 'dayOfWeek':
-            const daysMap = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
-            return `: ${subCond.days ? subCond.days.map(d => daysMap[d]).join(',') : 'N/A'}`;
-        case 'timeRange':
-            const subStartHrStr = String(subCond.startHour).padStart(2, '0');
-            const subStartMinStr = String(subCond.startMinute !== undefined ? subCond.startMinute : '00').padStart(2, '0');
-            const subEndHrStr = String(subCond.endHour).padStart(2, '0');
-            const subEndMinStr = String(subCond.endMinute !== undefined ? subCond.endMinute : '00').padStart(2, '0');
-            return `: ${subStartHrStr}:${subStartMinStr}-${subEndHrStr}:${subEndMinStr}`;
-        case 'domain': return `: ${subCond.domains ? subCond.domains.join(', ') : 'N/A'}`;
-        case 'specialDate': return `: ${String(subCond.day).padStart(2, '0')}/${String(subCond.month).padStart(2, '0')}`;
-        default: return '';
-    }
-}
+function handleShowRuleForm() { currentEditingRuleId = null; resetRuleForm(); ruleForm.classList.remove('hidden'); addRuleBtn.classList.add('hidden'); ruleForm.querySelector('h3').textContent = 'Nova Regra'; }
 
-function handleShowRuleForm() {
-  currentEditingRuleId = null;
-  resetRuleForm();
-  ruleForm.classList.remove('hidden');
-  addRuleBtn.classList.add('hidden');
-  ruleForm.querySelector('h3').textContent = 'Nova Regra de Expansão';
-  handleRuleTypeChange();
-  ruleExpansionTextarea.focus();
-}
+function resetRuleForm() { ruleForm.reset(); dayCheckboxes.forEach(cb => cb.checked = false); subConditionsList.innerHTML = ''; handleRuleTypeChange(); }
 
-function resetRuleForm() {
-  ruleForm.reset();
-  dayCheckboxes.forEach(cb => cb.checked = false);
-  domainsTextarea.value = '';
-  startHourInput.value = '';
-  endHourInput.value = '';
-  startMinuteInput.value = '';
-  endMinuteInput.value = '';
-  specialMonthInput.value = '';
-  specialDayInput.value = '';
-  rulePriorityInput.value = 0;
-  ruleExpansionTextarea.value = '';
-  subConditionsList.innerHTML = '';
-  combinedOperatorSelect.value = 'AND';
-  handleRuleTypeChange();
-}
-
-function handleRuleTypeChange() {
-  const type = ruleTypeSelect.value;
-  daysSection.classList.toggle('hidden', type !== 'dayOfWeek');
-  timeSection.classList.toggle('hidden', type !== 'timeRange');
-  domainSection.classList.toggle('hidden', type !== 'domain');
-  specialDateSection.classList.toggle('hidden', type !== 'specialDate');
-  combinedRuleSection.classList.toggle('hidden', type !== 'combined');
-
-  if (type === 'combined' && subConditionsList.children.length === 0) {
-    handleAddSubCondition(null);
-  }
-}
+function handleRuleTypeChange() { const type = ruleTypeSelect.value; daysSection.classList.toggle('hidden', type !== 'dayOfWeek'); timeSection.classList.toggle('hidden', type !== 'timeRange'); domainSection.classList.toggle('hidden', type !== 'domain'); specialDateSection.classList.toggle('hidden', type !== 'specialDate'); combinedRuleSection.classList.toggle('hidden', type !== 'combined'); if (type === 'combined' && subConditionsList.children.length === 0) handleAddSubCondition(null); }
 
 async function handleSaveRule() {
-  if (!currentAbbreviationIdForRules) {
-    console.error("ID da abreviação não definido para salvar a regra.");
-    alert("Erro: ID da abreviação não encontrado. Tente reabrir o modal de regras.");
-    return;
-  }
-
-  const type = ruleTypeSelect.value;
+  if (!currentAbbreviationIdForRules) { SoteNotifier.show("ID da abreviação não encontrado.", 'error'); return; }
   const expansion = ruleExpansionTextarea.value.trim();
-  const priority = parseInt(rulePriorityInput.value, 10) || 0;
-
-  if (!expansion) {
-    alert('Por favor, defina o texto de expansão para a regra.');
-    ruleExpansionTextarea.focus();
-    return;
-  }
-
-  const ruleData = {
-    abbreviationId: currentAbbreviationIdForRules,
-    type,
-    expansion,
-    priority,
-  };
-
-  if (currentEditingRuleId !== null) {
-    ruleData.id = currentEditingRuleId;
-  }
-
-  // Coleta dados específicos do tipo de regra
+  if (!expansion) { SoteNotifier.show('Expansão da regra é obrigatória.', 'error'); return; }
+  const type = ruleTypeSelect.value;
+  const ruleData = { abbreviationId: currentAbbreviationIdForRules, type, expansion, priority: parseInt(rulePriorityInput.value, 10) || 0 };
+  if (currentEditingRuleId) ruleData.id = currentEditingRuleId;
   switch (type) {
-    case 'dayOfWeek':
-      ruleData.days = Array.from(dayCheckboxes).filter(cb => cb.checked).map(cb => parseInt(cb.value, 10));
-      break;
-    case 'timeRange':
-      ruleData.startHour = parseInt(startHourInput.value, 10);
-      ruleData.endHour = parseInt(endHourInput.value, 10);
-      ruleData.startMinute = parseInt(startMinuteInput.value, 10);
-      ruleData.endMinute = parseInt(endMinuteInput.value, 10);
-      break;
-    case 'domain':
-      ruleData.domains = domainsTextarea.value.split('\n').map(d => d.trim()).filter(d => d.length > 0);
-      break;
-    case 'specialDate':
-      ruleData.month = parseInt(specialMonthInput.value, 10);
-      ruleData.day = parseInt(specialDayInput.value, 10);
-      break;
+    case 'dayOfWeek': ruleData.days = Array.from(dayCheckboxes).filter(cb => cb.checked).map(cb => parseInt(cb.value, 10)); break;
+    case 'timeRange': Object.assign(ruleData, { startHour: parseInt(startHourInput.value), endHour: parseInt(endHourInput.value), startMinute: parseInt(startMinuteInput.value), endMinute: parseInt(endMinuteInput.value) }); break;
+    case 'domain': ruleData.domains = domainsTextarea.value.split('\n').map(d => d.trim()).filter(Boolean); break;
+    case 'specialDate': Object.assign(ruleData, { month: parseInt(specialMonthInput.value), day: parseInt(specialDayInput.value) }); break;
     case 'combined':
       ruleData.logicalOperator = combinedOperatorSelect.value;
-      ruleData.subConditions = [];
-      const subConditionElements = subConditionsList.querySelectorAll('.sub-condition-item');
-      for (const item of subConditionElements) {
+      ruleData.subConditions = Array.from(subConditionsList.querySelectorAll('.sub-condition-item')).map(item => {
         const subType = item.querySelector('.sub-condition-type').value;
-        const subFieldsContainer = item.querySelector('.sub-condition-fields');
-        const subNegated = item.querySelector('.sub-condition-negate').checked;
-        const subCondData = { conditionType: subType, negated: subNegated };
-
+        const subData = { conditionType: subType, negated: item.querySelector('.sub-condition-negate').checked };
+        const fields = item.querySelector('.sub-condition-fields');
         switch (subType) {
-          case 'dayOfWeek':
-            subCondData.days = Array.from(subFieldsContainer.querySelectorAll('input[type="checkbox"].sub-day:checked')).map(cb => parseInt(cb.value, 10));
-            break;
-          case 'timeRange':
-            subCondData.startHour = parseInt(subFieldsContainer.querySelector('.sub-start-hour').value, 10);
-            subCondData.endHour = parseInt(subFieldsContainer.querySelector('.sub-end-hour').value, 10);
-            subCondData.startMinute = parseInt(subFieldsContainer.querySelector('.sub-start-minute').value, 10);
-            subCondData.endMinute = parseInt(subFieldsContainer.querySelector('.sub-end-minute').value, 10);
-            break;
-          case 'domain':
-            subCondData.domains = subFieldsContainer.querySelector('.sub-domains').value.split('\n').map(d => d.trim()).filter(d => d.length > 0);
-            break;
-          case 'specialDate':
-            subCondData.month = parseInt(subFieldsContainer.querySelector('.sub-special-month').value, 10);
-            subCondData.day = parseInt(subFieldsContainer.querySelector('.sub-special-day').value, 10);
-            break;
+            case 'dayOfWeek': subData.days = Array.from(fields.querySelectorAll('.sub-day:checked')).map(cb => parseInt(cb.value)); break;
+            case 'timeRange': Object.assign(subData, { startHour: parseInt(fields.querySelector('.sub-start-hour').value), endHour: parseInt(fields.querySelector('.sub-end-hour').value), startMinute: parseInt(fields.querySelector('.sub-start-minute').value), endMinute: parseInt(fields.querySelector('.sub-end-minute').value) }); break;
+            case 'domain': subData.domains = fields.querySelector('.sub-domains').value.split('\n').map(d => d.trim()).filter(Boolean); break;
+            case 'specialDate': Object.assign(subData, { month: parseInt(fields.querySelector('.sub-special-month').value), day: parseInt(fields.querySelector('.sub-special-day').value) }); break;
         }
-        ruleData.subConditions.push(subCondData);
-      }
+        return subData;
+      });
       break;
   }
-  
   try {
-    if (currentEditingRuleId !== null) {
-        await window.TextExpanderDB.updateExpansionRule(ruleData);
-    } else {
-        await window.TextExpanderDB.addExpansionRule(ruleData);
-    }
+    await (currentEditingRuleId ? window.TextExpanderDB.updateExpansionRule(ruleData) : window.TextExpanderDB.addExpansionRule(ruleData));
     ruleForm.classList.add('hidden');
     addRuleBtn.classList.remove('hidden');
-    currentEditingRuleId = null;
-    resetRuleForm();
+    SoteNotifier.show('Regra salva!', 'success');
     await performLocalRefresh();
-  } catch (error) {
-    console.error('Erro ao salvar regra:', error);
-    if (error.message.includes('Validation Error:')) {
-        alert(`Erro de validação da regra: ${error.message}`);
-    } else {
-        alert('Erro ao salvar regra. Verifique os dados e tente novamente.');
-    }
-  }
+  } catch (error) { console.error('Erro ao salvar regra:', error); SoteNotifier.show(error.message.includes('Validation') ? `Erro de validação: ${error.message}` : 'Erro ao salvar regra.', 'error'); }
 }
 
-function handleEditRule(rule) {
-  currentEditingRuleId = rule.id;
-  ruleForm.querySelector('h3').textContent = 'Editar Regra';
-  ruleTypeSelect.value = rule.type;
-  ruleExpansionTextarea.value = rule.expansion; // Para textarea
-  rulePriorityInput.value = rule.priority || 0;
-  subConditionsList.innerHTML = '';
-  handleRuleTypeChange();
+function handleEditRule(rule) { currentEditingRuleId = rule.id; ruleForm.querySelector('h3').textContent = 'Editar Regra'; ruleTypeSelect.value = rule.type; ruleExpansionTextarea.value = rule.expansion; rulePriorityInput.value = rule.priority || 0; subConditionsList.innerHTML = ''; handleRuleTypeChange(); switch (rule.type) { case 'dayOfWeek': dayCheckboxes.forEach(cb => { cb.checked = rule.days?.includes(parseInt(cb.value, 10)); }); break; case 'timeRange': startHourInput.value = rule.startHour; endHourInput.value = rule.endHour; startMinuteInput.value = rule.startMinute; endMinuteInput.value = rule.endMinute; break; case 'domain': domainsTextarea.value = rule.domains?.join('\n') || ''; break; case 'specialDate': specialMonthInput.value = rule.month; specialDayInput.value = rule.day; break; case 'combined': combinedOperatorSelect.value = rule.logicalOperator || 'AND'; rule.subConditions?.forEach(sc => handleAddSubCondition(sc)); break; } addRuleBtn.classList.add('hidden'); ruleForm.classList.remove('hidden'); }
+async function handleDeleteRule(ruleId) { SoteConfirmationModal.show({ title: 'Excluir Regra', message: 'Tem certeza que deseja excluir esta regra?', onConfirm: async () => { try { await window.TextExpanderDB.deleteExpansionRule(ruleId); SoteNotifier.show('Regra excluída.', 'success'); await performLocalRefresh(); } catch (error) { console.error('Erro ao excluir regra:', error); SoteNotifier.show('Erro ao excluir regra.', 'error'); } } }); }
 
-  switch (rule.type) {
-    case 'dayOfWeek':
-      dayCheckboxes.forEach(cb => { cb.checked = rule.days && rule.days.includes(parseInt(cb.value, 10)); });
-      break;
-    case 'timeRange':
-      startHourInput.value = rule.startHour !== undefined ? rule.startHour : '';
-      endHourInput.value = rule.endHour !== undefined ? rule.endHour : '';
-      startMinuteInput.value = rule.startMinute !== undefined ? rule.startMinute : '';
-      endMinuteInput.value = rule.endMinute !== undefined ? rule.endMinute : '';
-      break;
-    case 'domain':
-      domainsTextarea.value = rule.domains ? rule.domains.join('\n') : '';
-      break;
-    case 'specialDate':
-      specialMonthInput.value = rule.month !== undefined ? rule.month : '';
-      specialDayInput.value = rule.day !== undefined ? rule.day : '';
-      break;
-    case 'combined':
-      combinedOperatorSelect.value = rule.logicalOperator || 'AND';
-      if (rule.subConditions && rule.subConditions.length > 0) {
-        rule.subConditions.forEach(subCond => { handleAddSubCondition(subCond); });
-      } else if (subConditionsList.children.length === 0) {
-         handleAddSubCondition(null);
-      }
-      break;
-  }
-  addRuleBtn.classList.add('hidden');
-  ruleForm.classList.remove('hidden');
-  ruleExpansionTextarea.focus(); // Para textarea
-}
-
-async function handleDeleteRule(ruleId) {
-  if (confirm('Tem certeza que deseja excluir esta regra?')) {
-    try {
-      await window.TextExpanderDB.deleteExpansionRule(ruleId);
-      await performLocalRefresh();
-    } catch (error) {
-      console.error('Erro ao excluir regra:', error);
-      alert('Erro ao excluir regra.');
-    }
-  }
-}
-
-function handleAddSubCondition(existingSubCondData = null) {
+function handleAddSubCondition(data = null) {
   const clone = subConditionTemplate.content.cloneNode(true);
-  const subConditionItem = clone.querySelector('.sub-condition-item');
-  const typeSelect = subConditionItem.querySelector('.sub-condition-type');
-  const fieldsContainer = subConditionItem.querySelector('.sub-condition-fields');
-  const negateCheckbox = subConditionItem.querySelector('.sub-condition-negate');
-
-  if (existingSubCondData) {
-    typeSelect.value = existingSubCondData.conditionType;
-    negateCheckbox.checked = existingSubCondData.negated || false;
-    renderSubConditionFields(existingSubCondData.conditionType, fieldsContainer, existingSubCondData);
+  const item = clone.querySelector('.sub-condition-item');
+  if (data) {
+    item.querySelector('.sub-condition-type').value = data.conditionType;
+    item.querySelector('.sub-condition-negate').checked = data.negated || false;
+    renderSubConditionFields(data.conditionType, item.querySelector('.sub-condition-fields'), data);
   } else {
-    renderSubConditionFields(typeSelect.value, fieldsContainer, null);
+    renderSubConditionFields(item.querySelector('.sub-condition-type').value, item.querySelector('.sub-condition-fields'), null);
   }
-  subConditionsList.appendChild(subConditionItem);
-  return subConditionItem;
+  subConditionsList.appendChild(item);
 }
 
-function renderSubConditionFields(type, container, data = null) {
-  container.innerHTML = '';
-  let content = '';
-  switch (type) {
-    case 'dayOfWeek':
-      const days = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
-      content = `<label>Dias:</label><div class="checkbox-group">`;
-      days.forEach((day, index) => {
-        const checked = data && data.days && data.days.includes(index) ? 'checked' : '';
-        content += `<label><input type="checkbox" value="${index}" class="sub-day" ${checked}> ${day}</label>`;
-      });
-      content += `</div>`;
-      break;
-    case 'timeRange':
-      content = `
-        <label>Horário (HH:MM):</label>
-        <div class="time-range">
-          <input type="number" class="sub-start-hour" min="0" max="23" placeholder="HH" style="width: 60px;" value="${data && data.startHour !== undefined ? data.startHour : ''}"><span>:</span>
-          <input type="number" class="sub-start-minute" min="0" max="59" placeholder="MM" style="width: 60px;" value="${data && data.startMinute !== undefined ? data.startMinute : ''}">
-          <span>&nbsp;até&nbsp;</span>
-          <input type="number" class="sub-end-hour" min="0" max="23" placeholder="HH" style="width: 60px;" value="${data && data.endHour !== undefined ? data.endHour : ''}"><span>:</span>
-          <input type="number" class="sub-end-minute" min="0" max="59" placeholder="MM" style="width: 60px;" value="${data && data.endMinute !== undefined ? data.endMinute : ''}">
-        </div>`;
-      break;
-    case 'domain':
-      content = `<label for="sub-domains">Domínios (um por linha):</label><textarea class="sub-domains" rows="2" placeholder="exemplo.com">${data && data.domains ? data.domains.join('\n') : ''}</textarea>`;
-      break;
-    case 'specialDate':
-      content = `
-        <label>Data Especial (Anual):</label>
-        <div class="date-range">
-          <input type="number" class="sub-special-month" min="1" max="12" placeholder="Mês" value="${data && data.month !== undefined ? data.month : ''}"><span>/</span>
-          <input type="number" class="sub-special-day" min="1" max="31" placeholder="Dia" value="${data && data.day !== undefined ? data.day : ''}">
-        </div>`;
-      break;
-  }
-  container.innerHTML = content;
-}
+function renderSubConditionFields(type, container, data) { let content = ''; switch (type) { case 'dayOfWeek': content = `<label>Dias:</label><div class="checkbox-group">${['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map((day, i) => `<label><input type="checkbox" value="${i}" class="sub-day" ${data?.days?.includes(i) ? 'checked' : ''}> ${day}</label>`).join('')}</div>`; break; case 'timeRange': content = `<label>Horário:</label><div class="time-range"><input type="number" class="sub-start-hour" placeholder="HH" value="${data?.startHour || ''}">:<input type="number" class="sub-start-minute" placeholder="MM" value="${data?.startMinute || ''}"> - <input type="number" class="sub-end-hour" placeholder="HH" value="${data?.endHour || ''}">:<input type="number" class="sub-end-minute" placeholder="MM" value="${data?.endMinute || ''}"></div>`; break; case 'domain': content = `<label>Domínios:</label><textarea class="sub-domains" rows="2">${data?.domains?.join('\n') || ''}</textarea>`; break; case 'specialDate': content = `<label>Data:</label><div class="date-range"><input type="number" class="sub-special-month" placeholder="Mês" value="${data?.month || ''}">/<input type="number" class="sub-special-day" placeholder="Dia" value="${data?.day || ''}"></div>`; break; } container.innerHTML = content; }
 
 function showImportModal() { importModal.classList.remove('hidden'); importFile.value = ''; }
 function hideImportModal() { importModal.classList.add('hidden'); }
-
 async function handleImport() {
   const file = importFile.files[0];
-  if (!file) { alert('Por favor, selecione um arquivo para importar.'); return; }
+  if (!file) { SoteNotifier.show('Selecione um arquivo.', 'warning'); return; }
   try {
-    const text = await file.text();
-    const importData = JSON.parse(text);
-    if (!Array.isArray(importData)) { alert('Formato de arquivo de importação inválido: esperado um array de abreviações.'); return; }
-
-    // No `importAbbreviations` do `db.js`, a validação de cada item será feita individualmente.
-    // Opcionalmente, pode-se fazer uma validação mais robusta aqui antes de passar para o DB.
-    
-    // Se replace for true, limpar tudo antes de importar
-    if (importReplace.checked) {
-      await window.TextExpanderDB.clearAllAbbreviations(); // Isso já limpa regras também
-    }
-
-    const importedCount = await window.TextExpanderDB.importAbbreviations(importData);
-
+    const data = JSON.parse(await file.text());
+    if (!Array.isArray(data)) throw new Error("Formato inválido.");
+    if (importReplace.checked) await window.TextExpanderDB.clearAllAbbreviations();
+    const count = await window.TextExpanderDB.importAbbreviations(data);
     hideImportModal();
+    SoteNotifier.show(`${count} abreviações importadas.`, 'success');
     await performLocalRefresh();
-    alert(`Importadas ${importedCount} abreviações com sucesso. Algumas podem ter sido ignoradas se inválidas ou duplicadas (verifique o console).`);
-  } catch (error) {
-    console.error('Erro ao importar abreviações:', error);
-    alert('Erro ao importar abreviações. Verifique o formato do arquivo e o console para detalhes.');
-  }
+  } catch (e) { console.error(e); SoteNotifier.show('Erro ao importar. Verifique o arquivo.', 'error'); }
 }
 
-async function handleExport() {
-  try {
-    const currentAbbreviationsWithRules = await window.TextExpanderDB.getAllAbbreviations();
-    const exportData = JSON.stringify(currentAbbreviationsWithRules, null, 2);
-    const blob = new Blob([exportData], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = `sote-export-${new Date().toISOString().slice(0, 10)}.json`;
-    document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
-  } catch (error) {
-    console.error('Erro ao exportar abreviações:', error);
-    alert('Erro ao exportar abreviações.');
-  }
-}
-
+async function handleExport() { try { const data = await window.TextExpanderDB.getAllAbbreviations(); const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `sote-export-${new Date().toISOString().slice(0,10)}.json`; a.click(); URL.revokeObjectURL(url); } catch (e) { console.error(e); SoteNotifier.show('Erro ao exportar.', 'error'); } }
 function showSettingsModal() { settingsModal.classList.remove('hidden'); loadSettings(); }
 function hideSettingsModal() { settingsModal.classList.add('hidden'); }
-
-function loadSettings() {
-  chrome.storage.sync.get([
-    'triggerSpace', 'triggerTab', 'triggerEnter', 'enableUndo',
-    'autocompleteEnabled', 'autocompleteMinChars', 'autocompleteMaxSuggestions'
-  ], (result) => {
-    triggerSpace.checked = result.triggerSpace !== false;
-    triggerTab.checked = result.triggerTab !== false;
-    triggerEnter.checked = result.triggerEnter !== false;
-    settingUndo.checked = result.enableUndo !== false;
-    
-    // Load autocomplete settings
-    if (autocompleteEnabledCheckbox) {
-      autocompleteEnabledCheckbox.checked = result.autocompleteEnabled !== false;
-    }
-    if (autocompleteMinCharsInput) {
-      autocompleteMinCharsInput.value = result.autocompleteMinChars || 2;
-    }
-    if (autocompleteMaxSuggestionsInput) {
-      autocompleteMaxSuggestionsInput.value = result.autocompleteMaxSuggestions || 5;
-    }
-  });
-}
-
+function loadSettings() { chrome.storage.sync.get(['triggerSpace', 'triggerTab', 'triggerEnter', 'enableUndo', 'autocompleteEnabled', 'autocompleteMinChars', 'autocompleteMaxSuggestions'], (r) => { triggerSpace.checked = r.triggerSpace !== false; triggerTab.checked = r.triggerTab !== false; triggerEnter.checked = r.triggerEnter !== false; settingUndo.checked = r.enableUndo !== false; autocompleteEnabledCheckbox.checked = r.autocompleteEnabled !== false; autocompleteMinCharsInput.value = r.autocompleteMinChars || 2; autocompleteMaxSuggestionsInput.value = r.autocompleteMaxSuggestions || 5; }); }
 function handleSaveSettings() {
-  const settingsToSave = {
-    triggerSpace: triggerSpace.checked, 
-    triggerTab: triggerTab.checked,
-    triggerEnter: triggerEnter.checked, 
-    enableUndo: settingUndo.checked
+  const settings = {
+    triggerSpace: triggerSpace.checked, triggerTab: triggerTab.checked, triggerEnter: triggerEnter.checked, enableUndo: settingUndo.checked,
+    autocompleteEnabled: autocompleteEnabledCheckbox.checked, autocompleteMinChars: parseInt(autocompleteMinCharsInput.value) || 2, autocompleteMaxSuggestions: parseInt(autocompleteMaxSuggestionsInput.value) || 5,
   };
-
-  // Add autocomplete settings if elements exist
-  if (autocompleteEnabledCheckbox) {
-    settingsToSave.autocompleteEnabled = autocompleteEnabledCheckbox.checked;
-  }
-  if (autocompleteMinCharsInput) {
-    settingsToSave.autocompleteMinChars = parseInt(autocompleteMinCharsInput.value, 10) || 2;
-  }
-  if (autocompleteMaxSuggestionsInput) {
-    settingsToSave.autocompleteMaxSuggestions = parseInt(autocompleteMaxSuggestionsInput.value, 10) || 5;
-  }
-
-  chrome.storage.sync.set(settingsToSave, () => {
+  chrome.storage.sync.set(settings, () => {
     hideSettingsModal();
-    alert('Configurações salvas com sucesso.');
-    // Enviar mensagem para content scripts atualizarem suas configurações
-    chrome.tabs.query({}, (tabs) => {
-        tabs.forEach(tab => {
-          if (tab.id) {
-            chrome.tabs.sendMessage(tab.id, { type: window.SOTE_CONSTANTS.MESSAGE_TYPES.SETTINGS_UPDATED, settings: settingsToSave }) // Usar constante
-              .catch(err => {});
-          }
-        });
-    });
+    SoteNotifier.show('Configurações salvas.', 'success');
+    chrome.tabs.query({}, (tabs) => tabs.forEach(tab => tab.id && chrome.tabs.sendMessage(tab.id, { type: SOTE_CONSTANTS.MESSAGE_TYPES.SETTINGS_UPDATED, settings }).catch(()=>{})));
   });
 }
-
 async function handleClearData() {
-  if (confirm('Tem certeza que deseja apagar TODAS as abreviações e TODAS as regras? Esta ação não pode ser desfeita.')) {
-    try {
-      await window.TextExpanderDB.clearAllAbbreviations(); // Agora esta função também limpa as regras
-      hideSettingsModal();
-      await performLocalRefresh();
-      alert('Todos os dados foram apagados.');
-    } catch (error) {
-      console.error('Erro ao limpar dados:', error);
-      alert('Erro ao limpar dados. Por favor, tente novamente.');
+  SoteConfirmationModal.show({
+    title: 'Apagar Todos os Dados',
+    message: 'Esta ação é <strong>permanente</strong>. Todas as abreviações e regras serão removidas.',
+    onConfirm: async () => {
+      try {
+        await window.TextExpanderDB.clearAllAbbreviations();
+        hideSettingsModal();
+        SoteNotifier.show('Todos os dados foram apagados.', 'success');
+        await performLocalRefresh();
+      } catch (e) { console.error(e); SoteNotifier.show('Erro ao apagar dados.', 'error'); }
     }
-  }
+  });
 }
 
 document.addEventListener('DOMContentLoaded', init);
