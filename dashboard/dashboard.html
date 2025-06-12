@@ -1,528 +1,1028 @@
 <!DOCTYPE html>
 <html lang="pt-br">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Sote - Painel de Controle</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="dashboard.css">
-</head>
-<body>
-  <header class="header">
-    <div class="container">
-      <div class="logo">
-        <div class="logo-icon" aria-hidden="true">S</div>
-        <div class="logo-text">
-          <h1>Sote</h1>
-          <span class="subtitle">Painel de Controle - Expansor de Texto</span>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sote - Painel de Controle</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="dashboard.css" />
+  </head>
+  <body>
+    <header class="header">
+      <div class="container">
+        <div class="logo">
+          <div class="logo-icon" aria-hidden="true">S</div>
+          <div class="logo-text">
+            <h1>Sote</h1>
+            <span class="subtitle">Painel de Controle - Expansor de Texto</span>
+          </div>
+        </div>
+        <div class="header-actions">
+          <div class="toggle-container">
+            <label class="toggle" for="enabled-toggle">
+              <input
+                type="checkbox"
+                id="enabled-toggle"
+                checked
+                aria-describedby="status-text"
+              />
+              <span class="toggle-slider" aria-hidden="true"></span>
+              <span class="sr-only">Alternar ativação do expansor</span>
+            </label>
+            <span id="status-text" role="status" aria-live="polite"
+              >Habilitado</span
+            >
+          </div>
         </div>
       </div>
-      <div class="header-actions">
-        <div class="toggle-container">
-          <label class="toggle" for="enabled-toggle">
-            <input type="checkbox" id="enabled-toggle" checked aria-describedby="status-text">
-            <span class="toggle-slider" aria-hidden="true"></span>
-            <span class="sr-only">Alternar ativação do expansor</span>
-          </label>
-          <span id="status-text" role="status" aria-live="polite">Habilitado</span>
+    </header>
+
+    <main class="main">
+      <div class="container">
+        <div class="dashboard-grid">
+          <aside class="sidebar">
+            <div class="sidebar-section">
+              <h2>
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M4 6h16M4 12h16M4 18h7"></path>
+                </svg>
+                Categorias
+              </h2>
+              <ul class="category-list" id="category-list" role="list">
+                <li
+                  class="category-item active"
+                  data-category="all"
+                  role="listitem"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    <rect
+                      x="3"
+                      y="3"
+                      width="18"
+                      height="18"
+                      rx="2"
+                      ry="2"
+                    ></rect>
+                    <path d="M9 9h6v6H9z"></path>
+                  </svg>
+                  <span>Todas</span>
+                </li>
+              </ul>
+            </div>
+            <div class="sidebar-section">
+              <h2>
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <path
+                    d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"
+                  ></path>
+                  <circle cx="12" cy="12" r="3"></circle>
+                </svg>
+                Ferramentas
+              </h2>
+              <ul class="tools-list" role="list">
+                <li
+                  class="tools-item"
+                  id="import-btn"
+                  role="listitem"
+                  tabindex="0"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="17 8 12 3 7 8"></polyline>
+                    <line x1="12" y1="3" x2="12" y2="15"></line>
+                  </svg>
+                  <span>Importar Dados</span>
+                </li>
+                <li
+                  class="tools-item"
+                  id="export-btn"
+                  role="listitem"
+                  tabindex="0"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="7 10 12 15 17 10"></polyline>
+                    <line x1="12" y1="15" x2="12" y2="3"></line>
+                  </svg>
+                  <span>Exportar Tudo</span>
+                </li>
+                <li
+                  class="tools-item"
+                  id="export-selected-btn"
+                  role="listitem"
+                  tabindex="0"
+                  style="display: none;"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="7 10 12 15 17 10"></polyline>
+                    <line x1="12" y1="15" x2="12" y2="3"></line>
+                    <path
+                      d="M16 5h2a2 2 0 0 1 2 2v2M8 5H6a2 2 0 0 0-2 2v2"
+                    ></path>
+                  </svg>
+                  <span>Exportar Selecionadas</span>
+                </li>
+                <li
+                  class="tools-item"
+                  id="settings-btn"
+                  role="listitem"
+                  tabindex="0"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    <circle cx="12" cy="12" r="3"></circle>
+                    <path
+                      d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"
+                    ></path>
+                  </svg>
+                  <span>Configurações</span>
+                </li>
+              </ul>
+            </div>
+          </aside>
+
+          <section class="content">
+            <div class="content-header">
+              <div class="search-container">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  class="search-icon"
+                  aria-hidden="true"
+                >
+                  <circle cx="11" cy="11" r="8"></circle>
+                  <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                </svg>
+                <input
+                  type="text"
+                  id="search-input"
+                  placeholder="Buscar abreviações..."
+                  aria-label="Buscar abreviações"
+                  autocomplete="off"
+                  spellcheck="false"
+                />
+              </div>
+              <button id="add-btn" class="add-btn" type="button">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <line x1="12" y1="5" x2="12" y2="19"></line>
+                  <line x1="5" y1="12" x2="19" y2="12"></line>
+                </svg>
+                <span>Adicionar Nova</span>
+              </button>
+            </div>
+
+            <div class="content-body">
+              <div class="table-container">
+                <table
+                  class="abbreviations-table"
+                  role="table"
+                  aria-label="Tabela de abreviações"
+                >
+                  <thead>
+                    <tr role="row">
+                      <th class="checkbox-cell">
+                        <input
+                          type="checkbox"
+                          id="select-all-checkbox"
+                          aria-label="Selecionar todas as abreviações"
+                        />
+                      </th>
+                      <th
+                        class="sortable"
+                        data-sort="abbreviation"
+                        role="columnheader"
+                        tabindex="0"
+                        aria-sort="none"
+                      >
+                        Abreviação
+                      </th>
+                      <th role="columnheader">Expansão</th>
+                      <th
+                        class="sortable"
+                        data-sort="category"
+                        role="columnheader"
+                        tabindex="0"
+                        aria-sort="none"
+                      >
+                        Categoria
+                      </th>
+                      <th
+                        class="sortable"
+                        data-sort="usageCount"
+                        role="columnheader"
+                        tabindex="0"
+                        aria-sort="none"
+                      >
+                        Uso
+                      </th>
+                      <th
+                        class="sortable"
+                        data-sort="lastUsed"
+                        role="columnheader"
+                        tabindex="0"
+                        aria-sort="none"
+                      >
+                        Último Uso
+                      </th>
+                      <th role="columnheader">Regras</th>
+                      <th role="columnheader">Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody id="abbreviations-list" role="rowgroup">
+                    <tr role="row">
+                      <td colspan="8" class="loading">
+                        <div class="loading-spinner" aria-hidden="true"></div>
+                        Carregando abreviações...
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+    </main>
+
+    <div
+      id="modal-container"
+      class="modal-container hidden"
+      role="dialog"
+      aria-labelledby="modal-title"
+      aria-modal="true"
+    >
+      <div class="modal">
+        <div class="modal-header">
+          <h2 id="modal-title">Adicionar Nova Abreviação</h2>
+          <button
+            id="modal-close"
+            class="modal-close"
+            aria-label="Fechar modal"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
+        <div class="modal-body">
+          <form id="abbreviation-form" novalidate>
+            <div class="form-grid">
+              <div class="form-group">
+                <label for="abbreviation"
+                  >Abreviação <span aria-hidden="true">*</span></label
+                >
+                <input
+                  type="text"
+                  id="abbreviation"
+                  placeholder="tdb, vlw, pf"
+                  required
+                  autocomplete="off"
+                  spellcheck="false"
+                  aria-describedby="abbreviation-help"
+                />
+                <div id="abbreviation-help" class="sr-only">
+                  Digite a abreviação que será expandida
+                </div>
+              </div>
+              <div class="form-group">
+                <label for="expansion"
+                  >Expansão <span aria-hidden="true">*</span></label
+                >
+                <textarea
+                  id="expansion"
+                  placeholder="Tudo bem, valeu, por favor"
+                  required
+                  rows="3"
+                  spellcheck="false"
+                  aria-describedby="expansion-help"
+                ></textarea>
+                <div id="expansion-help" class="sr-only">
+                  Digite o texto que substituirá a abreviação
+                </div>
+                <div class="action-buttons-container">
+                  <button
+                    type="button"
+                    class="btn-insert-action"
+                    data-action="$cursor$"
+                    title="Posiciona o cursor de texto aqui após a expansão"
+                  >
+                    📍 Posição do Cursor
+                  </button>
+                  <button
+                    type="button"
+                    class="btn-insert-action"
+                    data-action="$transferencia$"
+                    title="Insere o conteúdo atual da área de transferência"
+                  >
+                    📋 Área de Transferência
+                  </button>
+                </div>
+              </div>
+              <div class="form-group">
+                <label for="category">Categoria</label>
+                <select id="category" aria-describedby="category-help">
+                  <option value="Comum">Comum</option>
+                  <option value="Pessoal">Pessoal</option>
+                  <option value="Trabalho">Trabalho</option>
+                  <option value="Personalizada">Personalizada</option>
+                </select>
+                <div id="category-help" class="sr-only">
+                  Selecione uma categoria para organizar suas abreviações
+                </div>
+              </div>
+              <div class="form-group" id="custom-category-input-container">
+                <label for="custom-category"
+                  >Categoria Personalizada
+                  <span aria-hidden="true">*</span></label
+                >
+                <input
+                  type="text"
+                  id="custom-category"
+                  placeholder="Digite a categoria personalizada"
+                  autocomplete="off"
+                  spellcheck="false"
+                />
+              </div>
+              <div class="form-group checkbox">
+                <input type="checkbox" id="case-sensitive" />
+                <label for="case-sensitive"
+                  >Diferenciar maiúsculas e minúsculas</label
+                >
+              </div>
+              <div class="form-group checkbox">
+                <input type="checkbox" id="enabled" checked />
+                <label for="enabled">Habilitado</label>
+              </div>
+            </div>
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button id="modal-cancel" class="cancel-btn" type="button">
+            Cancelar
+          </button>
+          <button
+            id="modal-save"
+            class="save-btn"
+            type="submit"
+            form="abbreviation-form"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <polyline points="20,6 9,17 4,12"></polyline>
+            </svg>
+            Salvar
+          </button>
         </div>
       </div>
     </div>
-  </header>
-  
-  <main class="main">
-    <div class="container">
-      <div class="dashboard-grid">
-        <aside class="sidebar">
-          <div class="sidebar-section">
-            <h2>
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="M4 6h16M4 12h16M4 18h7"></path>
-              </svg>
-              Categorias
-            </h2>
-            <ul class="category-list" id="category-list" role="list">
-              <li class="category-item active" data-category="all" role="listitem">
-                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-                  <path d="M9 9h6v6H9z"></path>
-                </svg>
-                <span>Todas</span>
-              </li>
-            </ul>
-          </div>
-          
-          <div class="sidebar-section">
-            <h2>
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path>
-                <circle cx="12" cy="12" r="3"></circle>
-              </svg>
-              Ferramentas
-            </h2>
-            <ul class="tools-list" role="list">
-              <li class="tools-item" id="import-btn" role="listitem" tabindex="0">
-                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+
+    <div
+      id="import-modal"
+      class="modal-container hidden"
+      role="dialog"
+      aria-labelledby="import-modal-title"
+      aria-modal="true"
+    >
+      <div class="modal large">
+        <div class="modal-header">
+          <h2 id="import-modal-title">Importar Abreviações</h2>
+          <button
+            id="import-modal-close"
+            class="modal-close"
+            aria-label="Fechar modal de importação"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
+        <div class="modal-body">
+          <div id="import-step-1">
+            <p>
+              Importe de um arquivo JSON. Você pode arrastar o arquivo ou
+              selecioná-lo manualmente.
+            </p>
+            <div id="import-drop-zone" class="drop-zone">
+              <div class="drop-zone-prompt">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="48"
+                  height="48"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.5"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
                   <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
                   <polyline points="17 8 12 3 7 8"></polyline>
                   <line x1="12" y1="3" x2="12" y2="15"></line>
                 </svg>
-                <span>Importar Dados</span>
-              </li>
-              <li class="tools-item" id="export-btn" role="listitem" tabindex="0">
-                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                  <polyline points="7 10 12 15 17 10"></polyline>
-                  <line x1="12" y1="15" x2="12" y2="3"></line>
-                </svg>
-                <span>Exportar Dados</span>
-              </li>
-              <li class="tools-item" id="settings-btn" role="listitem" tabindex="0">
-                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <circle cx="12" cy="12" r="3"></circle>
-                  <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
-                </svg>
-                <span>Configurações</span>
-              </li>
-            </ul>
-          </div>
-        </aside>
-        
-        <section class="content">
-          <div class="content-header">
-            <div class="search-container">
-              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="search-icon" aria-hidden="true">
-                <circle cx="11" cy="11" r="8"></circle>
-                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-              </svg>
-              <input 
-                type="text" 
-                id="search-input" 
-                placeholder="Buscar abreviações..." 
-                aria-label="Buscar abreviações"
-                autocomplete="off"
-                spellcheck="false"
+                <p>Arraste e solte o arquivo .json aqui</p>
+                <small>ou</small>
+                <button
+                  id="import-file-btn"
+                  type="button"
+                  class="btn-secondary"
+                >
+                  Selecione o Arquivo
+                </button>
+                <input
+                  type="file"
+                  id="import-file-input"
+                  accept=".json"
+                  class="hidden"
+                />
+              </div>
+            </div>
+            <div class="form-group" style="margin-top: 20px;">
+              <label>Modo de Importação:</label>
+              <div class="radio-group">
+                <label
+                  ><input
+                    type="radio"
+                    name="import-mode"
+                    value="merge"
+                    checked
+                  />
+                  Fundir com dados existentes</label
+                >
+                <label
+                  ><input type="radio" name="import-mode" value="replace" />
+                  Substituir todos os dados atuais</label
+                >
+              </div>
+              <small
+                ><b>Fundir:</b> Adiciona novas e atualiza existentes.
+                <b>Substituir:</b> Apaga tudo antes de importar.</small
               >
             </div>
-            <button id="add-btn" class="add-btn" type="button">
-              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <line x1="12" y1="5" x2="12" y2="19"></line>
-                <line x1="5" y1="12" x2="19" y2="12"></line>
-              </svg>
-              <span>Adicionar Nova</span>
-            </button>
           </div>
-          
-          <div class="content-body">
-            <div class="table-container">
-              <table class="abbreviations-table" role="table" aria-label="Tabela de abreviações">
+          <div id="import-step-2" class="hidden">
+            <h3>Pré-visualização da Importação</h3>
+            <div id="import-summary" class="import-summary"></div>
+            <div class="table-container import-preview-container">
+              <table class="abbreviations-table">
                 <thead>
-                  <tr role="row">
-                    <th class="sortable" data-sort="abbreviation" role="columnheader" tabindex="0" aria-sort="none">
-                      Abreviação
-                    </th>
-                    <th role="columnheader">Expansão</th>
-                    <th class="sortable" data-sort="category" role="columnheader" tabindex="0" aria-sort="none">
-                      Categoria
-                    </th>
-                    <th class="sortable" data-sort="usageCount" role="columnheader" tabindex="0" aria-sort="none">
-                      Uso
-                    </th>
-                    <th class="sortable" data-sort="lastUsed" role="columnheader" tabindex="0" aria-sort="none">
-                      Último Uso
-                    </th>
-                    <th role="columnheader">Regras</th> 
-                    <th role="columnheader">Ações</th>   
+                  <tr>
+                    <th>Status</th>
+                    <th>Abreviação</th>
+                    <th>Expansão</th>
+                    <th>Info</th>
                   </tr>
                 </thead>
-                <tbody id="abbreviations-list" role="rowgroup">
-                  <tr role="row">
-                    <td colspan="7" class="loading">
-                      <div class="loading-spinner" aria-hidden="true"></div>
-                      Carregando abreviações...
-                    </td>
-                  </tr>
-                </tbody>
+                <tbody id="import-preview-list"></tbody>
               </table>
             </div>
           </div>
-        </section>
-      </div>
-    </div>
-  </main>
-  
-  <div id="modal-container" class="modal-container hidden" role="dialog" aria-labelledby="modal-title" aria-modal="true">
-    <div class="modal">
-      <div class="modal-header">
-        <h2 id="modal-title">Adicionar Nova Abreviação</h2>
-        <button id="modal-close" class="modal-close" aria-label="Fechar modal">
-          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <line x1="18" y1="6" x2="6" y2="18"></line>
-            <line x1="6" y1="6" x2="18" y2="18"></line>
-          </svg>
-        </button>
-      </div>
-      
-      <div class="modal-body">
-        <form id="abbreviation-form" novalidate>
-          <div class="form-grid">
-            <div class="form-group">
-              <label for="abbreviation">
-                Abreviação
-                <span aria-hidden="true">*</span>
-              </label>
-              <input 
-                type="text" 
-                id="abbreviation" 
-                placeholder="tdb, vlw, pf" 
-                required 
-                autocomplete="off"
-                spellcheck="false"
-                aria-describedby="abbreviation-help"
-              >
-              <div id="abbreviation-help" class="sr-only">Digite a abreviação que será expandida</div>
-            </div>
-            
-            <div class="form-group">
-              <label for="expansion">
-                Expansão
-                <span aria-hidden="true">*</span>
-              </label>
-              <textarea 
-                id="expansion" 
-                placeholder="Tudo bem, valeu, por favor" 
-                required 
-                rows="3"
-                spellcheck="false"
-                aria-describedby="expansion-help"
-              ></textarea>
-              <div id="expansion-help" class="sr-only">Digite o texto que substituirá a abreviação</div>
-              <div class="action-buttons-container">
-                <button type="button" class="btn-insert-action" data-action="$cursor$" title="Posiciona o cursor de texto aqui após a expansão">
-                  📍 Posição do Cursor
-                </button>
-                <button type="button" class="btn-insert-action" data-action="$transferencia$" title="Insere o conteúdo atual da área de transferência">
-                  📋 Área de Transferência
-                </button>
-              </div>
-            </div>
-            
-            <div class="form-group">
-              <label for="category">Categoria</label>
-              <select id="category" aria-describedby="category-help">
-                <option value="Comum">Comum</option>
-                <option value="Pessoal">Pessoal</option>
-                <option value="Trabalho">Trabalho</option>
-                <option value="Personalizada">Personalizada</option>
-              </select>
-              <div id="category-help" class="sr-only">Selecione uma categoria para organizar suas abreviações</div>
-            </div>
-            
-            <div class="form-group" id="custom-category-input-container">
-              <label for="custom-category">
-                Categoria Personalizada
-                <span aria-hidden="true">*</span>
-              </label>
-              <input 
-                type="text" 
-                id="custom-category" 
-                placeholder="Digite a categoria personalizada"
-                autocomplete="off"
-                spellcheck="false"
-              >
-            </div>
-            
-            <div class="form-group checkbox">
-              <input type="checkbox" id="case-sensitive">
-              <label for="case-sensitive">Diferenciar maiúsculas e minúsculas</label>
-            </div>
-            
-            <div class="form-group checkbox">
-              <input type="checkbox" id="enabled" checked>
-              <label for="enabled">Habilitado</label>
-            </div>
-          </div>
-        </form>
-      </div>
-      
-      <div class="modal-footer">
-        <button id="modal-cancel" class="cancel-btn" type="button">Cancelar</button>
-        <button id="modal-save" class="save-btn" type="submit" form="abbreviation-form">
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <polyline points="20,6 9,17 4,12"></polyline>
-          </svg>
-          Salvar
-        </button>
-      </div>
-    </div>
-  </div>
-  
-  <div id="import-modal" class="modal-container hidden" role="dialog" aria-labelledby="import-modal-title" aria-modal="true">
-    <div class="modal">
-      <div class="modal-header">
-        <h2 id="import-modal-title">Importar Abreviações</h2>
-        <button id="import-modal-close" class="modal-close" aria-label="Fechar modal de importação">
-          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <line x1="18" y1="6" x2="6" y2="18"></line>
-            <line x1="6" y1="6" x2="18" y2="18"></line>
-          </svg>
-        </button>
-      </div>
-      
-      <div class="modal-body">
-        <p>Importe abreviações de um arquivo JSON. O arquivo deve conter um array de objetos de abreviação.</p>
-        
-        <div class="form-group">
-          <label for="import-file">Selecionar arquivo</label>
-          <input type="file" id="import-file" accept=".json" aria-describedby="import-file-help">
-          <div id="import-file-help" class="sr-only">Selecione um arquivo JSON contendo as abreviações para importar</div>
         </div>
-        
-        <div class="form-group checkbox">
-          <input type="checkbox" id="import-replace" checked>
-          <label for="import-replace">Substituir abreviações existentes</label>
-        </div>
-      </div>
-      
-      <div class="modal-footer">
-        <button id="import-modal-cancel" class="cancel-btn" type="button">Cancelar</button>
-        <button id="import-modal-import" class="save-btn" type="button">
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-            <polyline points="17 8 12 3 7 8"></polyline>
-            <line x1="12" y1="3" x2="12" y2="15"></line>
-          </svg>
-          Importar
-        </button>
-      </div>
-    </div>
-  </div>
-  
-  <div id="settings-modal" class="modal-container hidden" role="dialog" aria-labelledby="settings-modal-title" aria-modal="true">
-    <div class="modal">
-      <div class="modal-header">
-        <h2 id="settings-modal-title">Configurações</h2>
-        <button id="settings-modal-close" class="modal-close" aria-label="Fechar modal de configurações">
-          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <line x1="18" y1="6" x2="6" y2="18"></line>
-            <line x1="6" y1="6" x2="18" y2="18"></line>
-          </svg>
-        </button>
-      </div>
-      
-      <div class="modal-body">
-        <h3>Gatilhos de Expansão</h3>
-        <p>Configure quais teclas ativam a expansão das abreviações</p>
-        
-        <div class="form-group checkbox">
-          <input type="checkbox" id="trigger-space" checked>
-          <label for="trigger-space">Espaço</label>
-        </div>
-        
-        <div class="form-group checkbox">
-          <input type="checkbox" id="trigger-tab" checked>
-          <label for="trigger-tab">Tab</label>
-        </div>
-        
-        <div class="form-group checkbox">
-          <input type="checkbox" id="trigger-enter" checked>
-          <label for="trigger-enter">Enter</label>
-        </div>
-        
-        <h3>Autocompletar</h3>
-        <p>Configure as sugestões automáticas durante a digitação</p>
-        
-        <div class="form-group checkbox">
-          <input type="checkbox" id="autocomplete-enabled" checked>
-          <label for="autocomplete-enabled">Habilitar autocompletar</label>
-        </div>
-        
-        <div class="form-group">
-          <label for="autocomplete-min-chars">Caracteres mínimos para sugestões</label>
-          <input type="number" id="autocomplete-min-chars" min="1" max="10" value="2">
-        </div>
-        
-        <div class="form-group">
-          <label for="autocomplete-max-suggestions">Máximo de sugestões</label>
-          <input type="number" id="autocomplete-max-suggestions" min="1" max="10" value="5">
-        </div>
-        
-        <h3>Configurações Avançadas</h3>
-        
-        <div class="form-group checkbox">
-          <input type="checkbox" id="setting-undo" checked>
-          <label for="setting-undo">Habilitar desfazer (Ctrl+Z ou Backspace)</label>
-        </div>
-        
-        <div class="form-group">
-          <button id="clear-data-btn" class="danger-btn" type="button">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="M3 6h18"></path>
-              <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
-              <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
-            </svg>
-            Apagar Todos os Dados
+        <div class="modal-footer">
+          <button id="import-modal-cancel" class="cancel-btn" type="button">
+            Cancelar
+          </button>
+          <button
+            id="import-modal-confirm"
+            class="save-btn hidden"
+            type="button"
+          >
+            Confirmar Importação
           </button>
         </div>
       </div>
-      
-      <div class="modal-footer">
-        <button id="settings-modal-cancel" class="cancel-btn" type="button">Cancelar</button>
-        <button id="settings-modal-save" class="save-btn" type="button">
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <polyline points="20,6 9,17 4,12"></polyline>
-          </svg>
-          Salvar Configurações
-        </button>
+    </div>
+
+    <div
+      id="settings-modal"
+      class="modal-container hidden"
+      role="dialog"
+      aria-labelledby="settings-modal-title"
+      aria-modal="true"
+    >
+      <div class="modal">
+        <div class="modal-header">
+          <h2 id="settings-modal-title">Configurações</h2>
+          <button
+            id="settings-modal-close"
+            class="modal-close"
+            aria-label="Fechar modal de configurações"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
+        <div class="modal-body">
+          <h3>Gatilhos de Expansão</h3>
+          <p>Configure quais teclas ativam a expansão das abreviações</p>
+          <div class="form-group checkbox">
+            <input type="checkbox" id="trigger-space" checked /><label
+              for="trigger-space"
+              >Espaço</label
+            >
+          </div>
+          <div class="form-group checkbox">
+            <input type="checkbox" id="trigger-tab" checked /><label
+              for="trigger-tab"
+              >Tab</label
+            >
+          </div>
+          <div class="form-group checkbox">
+            <input type="checkbox" id="trigger-enter" checked /><label
+              for="trigger-enter"
+              >Enter</label
+            >
+          </div>
+          <h3>Autocompletar</h3>
+          <p>Configure as sugestões automáticas durante a digitação</p>
+          <div class="form-group checkbox">
+            <input type="checkbox" id="autocomplete-enabled" checked /><label
+              for="autocomplete-enabled"
+              >Habilitar autocompletar</label
+            >
+          </div>
+          <div class="form-group">
+            <label for="autocomplete-min-chars"
+              >Caracteres mínimos para sugestões</label
+            ><input
+              type="number"
+              id="autocomplete-min-chars"
+              min="1"
+              max="10"
+              value="2"
+            />
+          </div>
+          <div class="form-group">
+            <label for="autocomplete-max-suggestions">Máximo de sugestões</label
+            ><input
+              type="number"
+              id="autocomplete-max-suggestions"
+              min="1"
+              max="10"
+              value="5"
+            />
+          </div>
+          <h3>Configurações Avançadas</h3>
+          <div class="form-group checkbox">
+            <input type="checkbox" id="setting-undo" checked /><label
+              for="setting-undo"
+              >Habilitar desfazer (Backspace)</label
+            >
+          </div>
+          <div class="form-group">
+            <button id="clear-data-btn" class="danger-btn" type="button">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path
+                  d="M3 6h18m-2 0v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6m3-2V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"
+                />
+              </svg>
+              Apagar Todos os Dados
+            </button>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button id="settings-modal-cancel" class="cancel-btn" type="button">
+            Cancelar
+          </button>
+          <button id="settings-modal-save" class="save-btn" type="button">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <polyline points="20,6 9,17 4,12"></polyline>
+            </svg>
+            Salvar Configurações
+          </button>
+        </div>
       </div>
     </div>
-  </div>
 
-  <div id="rules-modal" class="modal-container hidden" role="dialog" aria-labelledby="rules-modal-title" aria-modal="true">
-    <div class="modal">
-      <div class="modal-header">
-        <h2 id="rules-modal-title">Regras de Expansão</h2>
-        <button id="rules-modal-close" class="modal-close" aria-label="Fechar modal de regras">
-           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <line x1="18" y1="6" x2="6" y2="18"></line>
-            <line x1="6" y1="6" x2="18" y2="18"></line>
-          </svg>
-        </button>
-      </div>
-      
-      <div class="modal-body">
-        <div id="rules-list"></div>
-        
-        <button id="add-rule-btn" class="add-btn">
-          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <line x1="12" y1="5" x2="12" y2="19"></line>
-            <line x1="5" y1="12" x2="19" y2="12"></line>
-          </svg>
-          Adicionar Regra
-        </button>
-        
-        <form id="rule-form" class="hidden" novalidate>
-          <h3>Nova Regra de Expansão</h3>
-          
-          <div class="form-group">
-            <label for="rule-type">Tipo de Regra</label>
-            <select id="rule-type">
-              <option value="dayOfWeek">Dia da Semana</option>
-              <option value="timeRange">Horário</option>
-              <option value="domain">Domínio do Site</option>
-              <option value="specialDate">Data Especial (Anual)</option>
-              <option value="combined">Combinada</option>
-            </select>
-          </div>
-          
-          <div id="days-section" class="form-group hidden">
-            <label>Dias da Semana</label>
-            <div class="checkbox-group">
-                <label><input type="checkbox" name="rule-day" value="0"> Dom</label>
-                <label><input type="checkbox" name="rule-day" value="1"> Seg</label>
-                <label><input type="checkbox" name="rule-day" value="2"> Ter</label>
-                <label><input type="checkbox" name="rule-day" value="3"> Qua</label>
-                <label><input type="checkbox" name="rule-day" value="4"> Qui</label>
-                <label><input type="checkbox" name="rule-day" value="5"> Sex</label>
-                <label><input type="checkbox" name="rule-day" value="6"> Sáb</label>
+    <div
+      id="rules-modal"
+      class="modal-container hidden"
+      role="dialog"
+      aria-labelledby="rules-modal-title"
+      aria-modal="true"
+    >
+      <div class="modal">
+        <div class="modal-header">
+          <h2 id="rules-modal-title">Regras de Expansão</h2>
+          <button
+            id="rules-modal-close"
+            class="modal-close"
+            aria-label="Fechar modal de regras"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
+        <div class="modal-body">
+          <div id="rules-list"></div>
+          <button id="add-rule-btn" class="add-btn">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <line x1="12" y1="5" x2="12" y2="19"></line>
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+            Adicionar Regra
+          </button>
+          <form id="rule-form" class="hidden" novalidate>
+            <h3>Nova Regra de Expansão</h3>
+            <div class="form-group">
+              <label for="rule-type">Tipo de Regra</label
+              ><select id="rule-type">
+                <option value="dayOfWeek">Dia da Semana</option>
+                <option value="timeRange">Horário</option>
+                <option value="domain">Domínio do Site</option>
+                <option value="specialDate">Data Especial (Anual)</option>
+                <option value="combined">Combinada</option>
+              </select>
             </div>
-          </div>
-          
-          <div id="time-section" class="form-group hidden">
-            <label>Horário (HH:MM)</label>
-            <div class="time-range">
-              <input type="number" id="start-hour" min="0" max="23" placeholder="HH" style="width: 80px;">
-              <span>:</span>
-              <input type="number" id="start-minute" min="0" max="59" placeholder="MM" style="width: 80px;">
-              <span>&nbsp;até&nbsp;</span>
-              <input type="number" id="end-hour" min="0" max="23" placeholder="HH" style="width: 80px;">
-              <span>:</span>
-              <input type="number" id="end-minute" min="0" max="59" placeholder="MM" style="width: 80px;">
-            </div>
-          </div>
-          
-          <div id="domain-section" class="form-group hidden">
-            <label for="domains">Domínios (um por linha)</label>
-            <textarea id="domains" rows="3" placeholder="example.com&#10;anotherexample.org"></textarea>
-          </div>
-
-          <div id="special-date-section" class="form-group hidden">
-            <label>Data Especial (Anual)</label>
-            <div class="date-range">
-              <input type="number" id="special-month" min="1" max="12" placeholder="Mês (1-12)">
-              <span>/</span>
-              <input type="number" id="special-day" min="1" max="31" placeholder="Dia (1-31)">
-            </div>
-            <small>Ex: Para 25 de Dezembro, use Mês: 12, Dia: 25.</small>
-          </div>
-
-          <div id="combined-rule-section" class="form-group hidden">
-            <label for="combined-operator">Operador Lógico Principal</label>
-            <select id="combined-operator">
-              <option value="AND">E (Todas as condições devem ser verdadeiras)</option>
-              <option value="OR">OU (Pelo menos uma condição deve ser verdadeira)</option>
-            </select>
-            
-            <h4>Sub-condições:</h4>
-            <div id="sub-conditions-list"></div>
-            <button type="button" id="add-sub-condition-btn" class="btn-secondary">Adicionar Sub-condição</button>
-
-            <template id="sub-condition-template">
-              <div class="sub-condition-item">
-                <div class="form-group">
-                  <label for="sub-condition-type">Tipo da Sub-condição</label>
-                  <select class="sub-condition-type">
-                    <option value="dayOfWeek">Dia da Semana</option>
-                    <option value="timeRange">Horário</option>
-                    <option value="domain">Domínio</option>
-                    <option value="specialDate">Data Especial</option>
-                  </select>
-                </div>
-                <div class="sub-condition-fields"></div>
-                <div class="form-group checkbox">
-                    <input type="checkbox" class="sub-condition-negate">
-                    <label>NÃO (Inverter esta condição)</label>
-                </div>
-                <button type="button" class="remove-sub-condition-btn danger-btn">Remover Sub-condição</button>
+            <div id="days-section" class="form-group hidden">
+              <label>Dias da Semana</label>
+              <div class="checkbox-group">
+                <label
+                  ><input type="checkbox" name="rule-day" value="0" />
+                  Dom</label
+                ><label
+                  ><input type="checkbox" name="rule-day" value="1" />
+                  Seg</label
+                ><label
+                  ><input type="checkbox" name="rule-day" value="2" />
+                  Ter</label
+                ><label
+                  ><input type="checkbox" name="rule-day" value="3" />
+                  Qua</label
+                ><label
+                  ><input type="checkbox" name="rule-day" value="4" />
+                  Qui</label
+                ><label
+                  ><input type="checkbox" name="rule-day" value="5" />
+                  Sex</label
+                ><label
+                  ><input type="checkbox" name="rule-day" value="6" />
+                  Sáb</label
+                >
               </div>
-            </template>
-          </div>
-          
-          <div class="form-group">
-            <label for="rule-expansion">Expansão da Regra</label>
-            <textarea id="rule-expansion" placeholder="Texto expandido para esta regra" required rows="3"></textarea>
-            <div class="action-buttons-container">
-                <button type="button" class="btn-insert-action" data-action="$cursor$" title="Posiciona o cursor de texto aqui após a expansão">📍 Posição do Cursor</button>
-                <button type="button" class="btn-insert-action" data-action="$transferencia$" title="Insere o conteúdo atual da área de transferência">📋 Área de Transferência</button>
             </div>
-          </div>
-          
-          <div class="form-group">
-            <label for="rule-priority">Prioridade</label>
-            <input type="number" id="rule-priority" min="0" max="100" value="0">
-            <small>Maior prioridade é aplicada primeiro (0 é a padrão).</small>
-          </div>
-        </form>
-      </div>
-      
-      <div class="modal-footer">
-        <button id="rules-modal-cancel" class="cancel-btn" type="button">Cancelar</button>
-        <button id="rules-modal-save" class="save-btn" type="button">
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <polyline points="20,6 9,17 4,12"></polyline>
-          </svg>
-          Salvar Regra
-        </button>
+            <div id="time-section" class="form-group hidden">
+              <label>Horário (HH:MM)</label>
+              <div class="time-range">
+                <input
+                  type="number"
+                  id="start-hour"
+                  min="0"
+                  max="23"
+                  placeholder="HH"
+                  style="width: 80px;"
+                /><span>:</span
+                ><input
+                  type="number"
+                  id="start-minute"
+                  min="0"
+                  max="59"
+                  placeholder="MM"
+                  style="width: 80px;"
+                /><span>&nbsp;até&nbsp;</span
+                ><input
+                  type="number"
+                  id="end-hour"
+                  min="0"
+                  max="23"
+                  placeholder="HH"
+                  style="width: 80px;"
+                /><span>:</span
+                ><input
+                  type="number"
+                  id="end-minute"
+                  min="0"
+                  max="59"
+                  placeholder="MM"
+                  style="width: 80px;"
+                />
+              </div>
+            </div>
+            <div id="domain-section" class="form-group hidden">
+              <label for="domains">Domínios (um por linha)</label
+              ><textarea
+                id="domains"
+                rows="3"
+                placeholder="example.com&#10;anotherexample.org"
+              ></textarea>
+            </div>
+            <div id="special-date-section" class="form-group hidden">
+              <label>Data Especial (Anual)</label>
+              <div class="date-range">
+                <input
+                  type="number"
+                  id="special-month"
+                  min="1"
+                  max="12"
+                  placeholder="Mês (1-12)"
+                /><span>/</span
+                ><input
+                  type="number"
+                  id="special-day"
+                  min="1"
+                  max="31"
+                  placeholder="Dia (1-31)"
+                />
+              </div>
+              <small>Ex: Para 25 de Dezembro, use Mês: 12, Dia: 25.</small>
+            </div>
+            <div id="combined-rule-section" class="form-group hidden">
+              <label for="combined-operator">Operador Lógico Principal</label
+              ><select id="combined-operator">
+                <option value="AND">E (Todas)</option>
+                <option value="OR">OU (Qualquer uma)</option>
+              </select>
+              <h4>Sub-condições:</h4>
+              <div id="sub-conditions-list"></div>
+              <button
+                type="button"
+                id="add-sub-condition-btn"
+                class="btn-secondary"
+              >
+                Adicionar Sub-condição
+              </button>
+              <template id="sub-condition-template"
+                ><div class="sub-condition-item">
+                  <div class="form-group">
+                    <label for="sub-condition-type">Tipo</label
+                    ><select class="sub-condition-type">
+                      <option value="dayOfWeek">Dia da Semana</option>
+                      <option value="timeRange">Horário</option>
+                      <option value="domain">Domínio</option>
+                      <option value="specialDate">Data Especial</option>
+                    </select>
+                  </div>
+                  <div class="sub-condition-fields"></div>
+                  <div class="form-group checkbox">
+                    <input type="checkbox" class="sub-condition-negate" /><label
+                      >NÃO (Inverter)</label
+                    >
+                  </div>
+                  <button
+                    type="button"
+                    class="remove-sub-condition-btn danger-btn"
+                  >
+                    Remover
+                  </button>
+                </div></template
+              >
+            </div>
+            <div class="form-group">
+              <label for="rule-expansion">Expansão da Regra</label
+              ><textarea
+                id="rule-expansion"
+                placeholder="Texto expandido para esta regra"
+                required
+                rows="3"
+              ></textarea>
+              <div class="action-buttons-container">
+                <button
+                  type="button"
+                  class="btn-insert-action"
+                  data-action="$cursor$"
+                ></button
+                ><button
+                  type="button"
+                  class="btn-insert-action"
+                  data-action="$transferencia$"
+                ></button>
+              </div>
+            </div>
+            <div class="form-group">
+              <label for="rule-priority">Prioridade</label
+              ><input
+                type="number"
+                id="rule-priority"
+                min="0"
+                max="100"
+                value="0"
+              /><small
+                >Maior prioridade é aplicada primeiro (0 é a padrão).</small
+              >
+            </div>
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button id="rules-modal-cancel" class="cancel-btn" type="button">
+            Cancelar
+          </button>
+          <button id="rules-modal-save" class="save-btn" type="button">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <polyline points="20,6 9,17 4,12"></polyline>
+            </svg>
+            Salvar Regra
+          </button>
+        </div>
       </div>
     </div>
-  </div>
 
-  <script src="../utils/constants.js"></script>
-  <script src="../utils/db.js"></script>
-  <script src="../utils/notifier.js"></script>
-  <script src="../utils/confirmationModal.js"></script>
-  <script src="dashboard.js"></script>
-</body>
+    <script src="../utils/constants.js"></script>
+    <script src="../utils/db.js"></script>
+    <script src="../utils/notifier.js"></script>
+    <script src="../utils/confirmationModal.js"></script>
+    <script src="dashboard.js"></script>
+  </body>
 </html>
