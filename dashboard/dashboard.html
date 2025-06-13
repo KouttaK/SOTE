@@ -708,17 +708,43 @@
           <h3>Lista de Exclusão</h3>
           <p>
             A expansão será desativada em sites, domínios e campos de texto
-            (usando seletores CSS) listados aqui. Campos de senha são sempre
-            ignorados.
+            (usando seletores CSS) listados aqui.
           </p>
-          <div class="form-group">
-            <label for="exclusion-list"
-              >Itens a serem ignorados (um por linha)</label
+          <div class="form-group checkbox">
+            <input type="checkbox" id="setting-ignore-password" checked /><label
+              for="setting-ignore-password"
+              >Ignorar campos de senha automaticamente</label
             >
+          </div>
+          <div class="form-group">
+            <label for="exclusion-list" class="label-with-tooltip"
+              >Itens a serem ignorados (um por linha)
+              <span
+                class="tooltip-icon"
+                data-tooltip="Use domínios (ex: google.com), seletores de classe (ex: .campo-ignorado), de ID (ex: #meu-editor) ou de atributo (ex: [data-cy=input]). Cada item em uma nova linha."
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+                  <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                </svg>
+              </span>
+            </label>
             <textarea
               id="exclusion-list"
               rows="4"
-              placeholder="Ex: codepen.io&#10;*.github.dev&#10;[data-cy=code-editor]&#10;#specific-input-id"
+              placeholder="google.com&#10;*.site.com&#10;.classe-css&#10;#id-do-elemento&#10;[data-cy=campo-excluido]"
             ></textarea>
           </div>
 

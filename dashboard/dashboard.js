@@ -54,6 +54,9 @@ const triggerSpace = document.getElementById("trigger-space");
 const triggerTab = document.getElementById("trigger-tab");
 const triggerEnter = document.getElementById("trigger-enter");
 const settingUndo = document.getElementById("setting-undo");
+const settingIgnorePassword = document.getElementById(
+  "setting-ignore-password"
+);
 const exclusionListTextarea = document.getElementById("exclusion-list");
 const clearDataBtn = document.getElementById("clear-data-btn");
 const autocompleteEnabledCheckbox = document.getElementById(
@@ -1148,6 +1151,7 @@ function loadSettings() {
       "triggerEnter",
       "enableUndo",
       "exclusionList",
+      "ignorePasswordFields",
       "autocompleteEnabled",
       "autocompleteMinChars",
       "autocompleteMaxSuggestions",
@@ -1157,6 +1161,7 @@ function loadSettings() {
       triggerTab.checked = r.triggerTab !== false;
       triggerEnter.checked = r.triggerEnter !== false;
       settingUndo.checked = r.enableUndo !== false;
+      settingIgnorePassword.checked = r.ignorePasswordFields !== false;
       exclusionListTextarea.value = (r.exclusionList || []).join("\n");
       autocompleteEnabledCheckbox.checked = r.autocompleteEnabled !== false;
       autocompleteMinCharsInput.value = r.autocompleteMinChars || 2;
@@ -1175,6 +1180,7 @@ function handleSaveSettings() {
     triggerTab: triggerTab.checked,
     triggerEnter: triggerEnter.checked,
     enableUndo: settingUndo.checked,
+    ignorePasswordFields: settingIgnorePassword.checked,
     exclusionList: exclusionList,
     autocompleteEnabled: autocompleteEnabledCheckbox.checked,
     autocompleteMinChars: parseInt(autocompleteMinCharsInput.value) || 2,

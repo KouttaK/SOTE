@@ -1254,3 +1254,52 @@ td.loading {
     padding: var(--space-3);
   }
 }
+/* Estilos para Tooltip */
+.label-with-tooltip {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.tooltip-icon {
+  position: relative;
+  cursor: help;
+  display: inline-flex;
+  align-items: center;
+  color: var(--gray-400);
+  transition: color var(--transition-fast);
+}
+
+.tooltip-icon:hover {
+  color: var(--primary-500);
+}
+
+.tooltip-icon::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: 140%;
+  left: 50%;
+  transform: translateX(-50%) scale(0.95);
+  background: var(--gray-800);
+  color: white;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  font-size: var(--text-xs);
+  font-weight: var(--font-weight-normal);
+  line-height: var(--leading-normal);
+  width: max-content;
+  max-width: 300px;
+  text-align: left;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.2s, visibility 0.2s, transform 0.2s;
+  pointer-events: none;
+  z-index: var(--z-tooltip);
+  box-shadow: var(--shadow-lg);
+}
+
+.tooltip-icon:hover::after {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(-50%) scale(1);
+}

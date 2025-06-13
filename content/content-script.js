@@ -14,6 +14,7 @@
     triggerTab: true,
     triggerEnter: true,
     enableUndo: true,
+    ignorePasswordFields: true,
     autocompleteEnabled: true,
     autocompleteMinChars: 2,
     autocompleteMaxSuggestions: 5,
@@ -29,14 +30,14 @@
 
   /**
    * Verifica se a expansão deve ser pulada com base no elemento ou domínio atual.
+   * Lógica aprimorada para diferenciar seletores CSS de padrões de domínio.
    * @param {HTMLElement} element - O elemento de texto ativo.
    * @returns {boolean} - True se a expansão deve ser ignorada, false caso contrário.
    */
   function isExpansionExcluded(element) {
     if (!element) return true;
 
-    // Regra fixa: sempre ignorar campos de senha.
-    if (element.type === "password") {
+    if (settings.ignorePasswordFields && element.type === "password") {
       return true;
     }
 
@@ -48,27 +49,30 @@
     const currentHostname = window.location.hostname;
     const currentUrl = window.location.href;
 
-    // Expressão regular corrigida para não classificar domínios como seletores.
-    // Procura por caracteres que são quase exclusivos de seletores CSS.
-    const selectorChars = /[#[:> ]/;
+    // Caracteres que indicam um seletor CSS e não um domínio simples.
+    const selectorOnlyChars = /[#\[\] >]/;
 
     for (const item of exclusionItems) {
-      if (selectorChars.test(item)) {
-        // Trata o item como um seletor CSS
+      // Determina se o item deve ser tratado como um seletor CSS.
+      // É um seletor se contiver caracteres específicos (#, [], ' ', >) OU se começar com um ponto (.).
+      const isCssSelector =
+        selectorOnlyChars.test(item) || item.startsWith(".");
+
+      if (isCssSelector) {
         try {
           if (element.matches(item)) {
-            // console.log(`[SOTE] Expansão EXCLUÍDA pelo seletor: ${item}`);
+            // console.log(`[SOTE] EXCLUDED by CSS selector: ${item}`);
             return true;
           }
         } catch (e) {
-          /* Ignora seletores inválidos */
+          // console.warn(`[SOTE] Invalid CSS selector in exclusion list: ${item}`, e);
         }
       } else {
-        // Trata o item como um padrão de domínio/URL
+        // Caso contrário, trata como um padrão de domínio/URL.
         if (
           DomainValidator.validateDomain([item], currentHostname, currentUrl)
         ) {
-          // console.log(`[SOTE] Expansão EXCLUÍDA pela regra de domínio/URL: ${item}`);
+          // console.log(`[SOTE] EXCLUDED by domain pattern: ${item}`);
           return true;
         }
       }
@@ -85,6 +89,7 @@
         "triggerEnter",
         "enableUndo",
         "exclusionList",
+        "ignorePasswordFields",
         "autocompleteEnabled",
         "autocompleteMinChars",
         "autocompleteMaxSuggestions",
@@ -94,6 +99,7 @@
         settings.triggerTab = result.triggerTab !== false;
         settings.triggerEnter = result.triggerEnter !== false;
         settings.enableUndo = result.enableUndo !== false;
+        settings.ignorePasswordFields = result.ignorePasswordFields !== false;
         settings.exclusionList = result.exclusionList || [];
         settings.autocompleteEnabled = result.autocompleteEnabled !== false;
         settings.autocompleteMinChars = result.autocompleteMinChars || 2;
