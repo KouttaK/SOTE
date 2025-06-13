@@ -235,6 +235,50 @@
       }));
     },
 
+    /**
+     * Retrieves all abbreviations belonging to a specific category, with their rules.
+     * @param {string} category The category to filter by.
+     * @returns {Promise<Array<Object>>} A promise that resolves to an array of abbreviation objects.
+     */
+    async getAbbreviationsByCategory(category) {
+      const db = await openDatabase();
+      return new Promise((resolve, reject) => {
+        const transaction = db.transaction(
+          [STORE_ABBREVIATIONS, STORE_RULES],
+          "readonly"
+        );
+        const abbrStore = transaction.objectStore(STORE_ABBREVIATIONS);
+        const rulesStore = transaction.objectStore(STORE_RULES);
+        const categoryIndex = abbrStore.index("category");
+
+        const abbrRequest = categoryIndex.getAll(category);
+        const rulesRequest = rulesStore.getAll(); // É mais simples pegar todas as regras e mapear depois
+
+        let abbreviations, rules;
+
+        abbrRequest.onsuccess = () => {
+          abbreviations = abbrRequest.result;
+          if (rules !== undefined)
+            resolve(this._mapRulesToAbbreviations(abbreviations, rules));
+        };
+        rulesRequest.onsuccess = () => {
+          rules = rulesRequest.result;
+          if (abbreviations !== undefined)
+            resolve(this._mapRulesToAbbreviations(abbreviations, rules));
+        };
+
+        transaction.onerror = event => {
+          console.error(
+            "Erro na transação ao buscar por categoria:",
+            event.target.error
+          );
+          reject(
+            new Error(`Failed to get abbreviations for category: ${category}`)
+          );
+        };
+      });
+    },
+
     async addAbbreviation(abbreviation) {
       const validatedAbbr = AbbreviationModel.validate({
         ...abbreviation,

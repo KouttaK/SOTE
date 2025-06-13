@@ -31,6 +31,7 @@ const mainModalInsertActionButtons = document.querySelectorAll(
 const importBtn = document.getElementById("import-btn");
 const exportBtn = document.getElementById("export-btn");
 const exportSelectedBtn = document.getElementById("export-selected-btn");
+const exportCategoryBtn = document.getElementById("export-category-btn");
 const importModal = document.getElementById("import-modal");
 const importModalClose = document.getElementById("import-modal-close");
 const importModalCancel = document.getElementById("import-modal-cancel");
@@ -53,6 +54,7 @@ const triggerSpace = document.getElementById("trigger-space");
 const triggerTab = document.getElementById("trigger-tab");
 const triggerEnter = document.getElementById("trigger-enter");
 const settingUndo = document.getElementById("setting-undo");
+const exclusionListTextarea = document.getElementById("exclusion-list");
 const clearDataBtn = document.getElementById("clear-data-btn");
 const autocompleteEnabledCheckbox = document.getElementById(
   "autocomplete-enabled"
@@ -199,6 +201,7 @@ async function init() {
   // Eventos de Import/Export
   exportBtn.addEventListener("click", handleExportAll);
   exportSelectedBtn.addEventListener("click", handleExportSelected);
+  exportCategoryBtn.addEventListener("click", handleExportCategory);
   importBtn.addEventListener("click", showImportModal);
   importModalClose.addEventListener("click", hideImportModal);
   importModalCancel.addEventListener("click", hideImportModal);
@@ -414,6 +417,17 @@ function handleCategoryFilter(category) {
     .forEach(item =>
       item.classList.toggle("active", item.dataset.category === category)
     );
+
+  // Lógica para mostrar/esconder o botão de exportar categoria
+  if (category && category !== "all") {
+    exportCategoryBtn.style.display = "flex";
+    exportCategoryBtn.querySelector(
+      "span"
+    ).textContent = `Exportar "${category}"`;
+  } else {
+    exportCategoryBtn.style.display = "none";
+  }
+
   filterAbbreviations();
 }
 function handleSort(column) {
@@ -1085,6 +1099,38 @@ async function handleExportSelected() {
     `sote-export-selected-${new Date().toISOString().slice(0, 10)}.json`
   );
 }
+async function handleExportCategory() {
+  if (!currentCategory || currentCategory === "all") {
+    SoteNotifier.show("Selecione uma categoria para exportar.", "warning");
+    return;
+  }
+
+  try {
+    const data = await window.TextExpanderDB.getAbbreviationsByCategory(
+      currentCategory
+    );
+    if (data.length === 0) {
+      SoteNotifier.show(
+        `A categoria "${currentCategory}" não possui abreviações para exportar.`,
+        "info"
+      );
+      return;
+    }
+    exportDataAsJson(
+      data,
+      `sote-export-categoria-${currentCategory}-${new Date()
+        .toISOString()
+        .slice(0, 10)}.json`
+    );
+    SoteNotifier.show(
+      `Categoria "${currentCategory}" exportada com sucesso!`,
+      "success"
+    );
+  } catch (e) {
+    console.error("Erro ao exportar categoria:", e);
+    SoteNotifier.show("Erro ao exportar a categoria.", "error");
+  }
+}
 
 // --- LÓGICA DE CONFIGURAÇÕES ---
 function showSettingsModal() {
@@ -1101,6 +1147,7 @@ function loadSettings() {
       "triggerTab",
       "triggerEnter",
       "enableUndo",
+      "exclusionList",
       "autocompleteEnabled",
       "autocompleteMinChars",
       "autocompleteMaxSuggestions",
@@ -1110,6 +1157,7 @@ function loadSettings() {
       triggerTab.checked = r.triggerTab !== false;
       triggerEnter.checked = r.triggerEnter !== false;
       settingUndo.checked = r.enableUndo !== false;
+      exclusionListTextarea.value = (r.exclusionList || []).join("\n");
       autocompleteEnabledCheckbox.checked = r.autocompleteEnabled !== false;
       autocompleteMinCharsInput.value = r.autocompleteMinChars || 2;
       autocompleteMaxSuggestionsInput.value = r.autocompleteMaxSuggestions || 5;
@@ -1117,19 +1165,27 @@ function loadSettings() {
   );
 }
 function handleSaveSettings() {
+  const exclusionList = exclusionListTextarea.value
+    .split("\n")
+    .map(item => item.trim())
+    .filter(Boolean);
+
   const settings = {
     triggerSpace: triggerSpace.checked,
     triggerTab: triggerTab.checked,
     triggerEnter: triggerEnter.checked,
     enableUndo: settingUndo.checked,
+    exclusionList: exclusionList,
     autocompleteEnabled: autocompleteEnabledCheckbox.checked,
     autocompleteMinChars: parseInt(autocompleteMinCharsInput.value) || 2,
     autocompleteMaxSuggestions:
       parseInt(autocompleteMaxSuggestionsInput.value) || 5,
   };
+
   chrome.storage.sync.set(settings, () => {
     hideSettingsModal();
     SoteNotifier.show("Configurações salvas.", "success");
+    // Enviar a mensagem para todas as abas, notificando a mudança nas configurações
     chrome.tabs.query({}, tabs =>
       tabs.forEach(
         tab =>
