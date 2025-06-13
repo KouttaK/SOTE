@@ -1,15 +1,19 @@
 // SOTE-main/content/content-script.js
 (function () {
   "use strict";
-  console.log(
-    "[SOTE DEBUG] content/content-script.js SCRIPT CARREGADO em:",
-    new Date().toLocaleTimeString()
-  );
 
-  let abbreviationsCache = [];
-  let isEnabled = true;
-  let settings = {
-    // Default settings
+  // ===== CONSTANTS =====
+  const DEBUG_PREFIX = "[SOTE DEBUG]";
+  const SELECTOR_ONLY_CHARS = /[#\[\] >]/;
+  const WHITESPACE_REGEX = /\s/;
+
+  const TRIGGER_KEYS_MAP = {
+    Space: "triggerSpace",
+    Tab: "triggerTab",
+    Enter: "triggerEnter",
+  };
+
+  const DEFAULT_SETTINGS = {
     triggerSpace: true,
     triggerTab: true,
     triggerEnter: true,
@@ -18,414 +22,573 @@
     autocompleteEnabled: true,
     autocompleteMinChars: 2,
     autocompleteMaxSuggestions: 5,
-    exclusionList: [], // Lista de exclusão
+    exclusionList: [],
   };
 
-  const TRIGGER_KEYS_MAP = {
-    // Mapeamento de códigos de tecla para nomes de gatilho
-    Space: "triggerSpace",
-    Tab: "triggerTab",
-    Enter: "triggerEnter",
-  };
+  // ===== STATE =====
+  let abbreviationsCache = [];
+  let isEnabled = true;
+  let settings = { ...DEFAULT_SETTINGS };
+  let debounceTimer = null;
+  let shadowObservers = new WeakSet();
 
+  // ===== UTILITY FUNCTIONS =====
+  function log(message, ...args) {
+    console.log(`${DEBUG_PREFIX} ${message}`, ...args);
+  }
+
+  function logError(message, error) {
+    console.error(`${DEBUG_PREFIX} ${message}`, error);
+  }
+
+  function debounce(func, delay) {
+    return function (...args) {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => func.apply(this, args), delay);
+    };
+  }
+
+  function isEditableElement(element) {
+    return (
+      element.isContentEditable ||
+      element.tagName === "INPUT" ||
+      element.tagName === "TEXTAREA"
+    );
+  }
+
+  function isRuntimeAvailable() {
+    return chrome.runtime && chrome.runtime.sendMessage;
+  }
+
+  // ===== EXCLUSION LOGIC =====
   /**
-   * Verifica se a expansão deve ser pulada com base no elemento ou domínio atual.
-   * Lógica aprimorada para diferenciar seletores CSS de padrões de domínio.
-   * @param {HTMLElement} element - O elemento de texto ativo.
-   * @returns {boolean} - True se a expansão deve ser ignorada, false caso contrário.
+   * Verifica se a expansão deve ser excluída baseada no elemento ou domínio atual.
+   * Lógica otimizada para diferenciar seletores CSS de padrões de domínio.
    */
   function isExpansionExcluded(element) {
     if (!element) return true;
 
+    // Verificação rápida para campos de senha
     if (settings.ignorePasswordFields && element.type === "password") {
       return true;
     }
 
-    const exclusionItems = settings.exclusionList || [];
-    if (exclusionItems.length === 0) {
-      return false;
-    }
+    const exclusionItems = settings.exclusionList;
+    if (!exclusionItems?.length) return false;
 
     const currentHostname = window.location.hostname;
     const currentUrl = window.location.href;
 
-    // Caracteres que indicam um seletor CSS e não um domínio simples.
-    const selectorOnlyChars = /[#\[\] >]/;
+    // Cache para evitar recálculos
+    if (!isExpansionExcluded._hostnameCache) {
+      isExpansionExcluded._hostnameCache = new Map();
+    }
+    const cache = isExpansionExcluded._hostnameCache;
 
     for (const item of exclusionItems) {
-      // Determina se o item deve ser tratado como um seletor CSS.
-      // É um seletor se contiver caracteres específicos (#, [], ' ', >) OU se começar com um ponto (.).
+      const cacheKey = `${item}:${currentHostname}`;
+
+      if (cache.has(cacheKey)) {
+        if (cache.get(cacheKey)) return true;
+        continue;
+      }
+
       const isCssSelector =
-        selectorOnlyChars.test(item) || item.startsWith(".");
+        SELECTOR_ONLY_CHARS.test(item) || item.startsWith(".");
+      let isExcluded = false;
 
       if (isCssSelector) {
         try {
-          if (element.matches(item)) {
-            // console.log(`[SOTE] EXCLUDED by CSS selector: ${item}`);
-            return true;
-          }
+          isExcluded = element.matches(item);
         } catch (e) {
-          // console.warn(`[SOTE] Invalid CSS selector in exclusion list: ${item}`, e);
+          logError(`Invalid CSS selector in exclusion list: ${item}`, e);
         }
       } else {
-        // Caso contrário, trata como um padrão de domínio/URL.
-        if (
-          DomainValidator.validateDomain([item], currentHostname, currentUrl)
-        ) {
-          // console.log(`[SOTE] EXCLUDED by domain pattern: ${item}`);
-          return true;
+        // Verificação de domínio
+        if (typeof DomainValidator !== "undefined") {
+          isExcluded = DomainValidator.validateDomain(
+            [item],
+            currentHostname,
+            currentUrl
+          );
         }
       }
+
+      cache.set(cacheKey, isExcluded);
+      if (isExcluded) return true;
     }
 
-    return false; // Nenhuma regra de exclusão foi correspondida.
+    return false;
   }
 
+  // ===== SETTINGS MANAGEMENT =====
   function loadSettings() {
-    chrome.storage.sync.get(
-      [
-        "triggerSpace",
-        "triggerTab",
-        "triggerEnter",
-        "enableUndo",
-        "exclusionList",
-        "ignorePasswordFields",
-        "autocompleteEnabled",
-        "autocompleteMinChars",
-        "autocompleteMaxSuggestions",
-      ],
-      result => {
-        settings.triggerSpace = result.triggerSpace !== false;
-        settings.triggerTab = result.triggerTab !== false;
-        settings.triggerEnter = result.triggerEnter !== false;
-        settings.enableUndo = result.enableUndo !== false;
-        settings.ignorePasswordFields = result.ignorePasswordFields !== false;
-        settings.exclusionList = result.exclusionList || [];
-        settings.autocompleteEnabled = result.autocompleteEnabled !== false;
-        settings.autocompleteMinChars = result.autocompleteMinChars || 2;
-        settings.autocompleteMaxSuggestions =
-          result.autocompleteMaxSuggestions || 5;
+    const settingsKeys = Object.keys(DEFAULT_SETTINGS);
 
-        updateAutocompleteSettings();
+    chrome.storage.sync.get(settingsKeys, result => {
+      if (chrome.runtime.lastError) {
+        logError("Failed to load settings:", chrome.runtime.lastError);
+        return;
       }
-    );
+
+      // Merge com valores padrão
+      Object.keys(DEFAULT_SETTINGS).forEach(key => {
+        settings[key] =
+          result[key] !== undefined ? result[key] : DEFAULT_SETTINGS[key];
+      });
+
+      updateAutocompleteSettings();
+    });
   }
 
   function updateAutocompleteSettings() {
-    if (window.SoteAutocomplete && window.SoteAutocomplete.getInstance()) {
-      const autocomplete = window.SoteAutocomplete.getInstance();
+    if (!window.SoteAutocomplete?.getInstance) return;
+
+    const autocomplete = window.SoteAutocomplete.getInstance();
+    if (!autocomplete) return;
+
+    try {
       if (settings.autocompleteEnabled) {
         autocomplete.enable();
       } else {
         autocomplete.disable();
       }
+
       autocomplete.setMinChars(settings.autocompleteMinChars);
       autocomplete.setMaxSuggestions(settings.autocompleteMaxSuggestions);
+    } catch (error) {
+      logError("Error updating autocomplete settings:", error);
     }
   }
 
+  // ===== ABBREVIATIONS MANAGEMENT =====
   function fetchAbbreviations() {
-    if (!chrome.runtime || !chrome.runtime.sendMessage) {
-      console.error(
-        "SOTE content-script: chrome.runtime.sendMessage não está disponível."
-      );
+    if (!isRuntimeAvailable()) {
+      logError("chrome.runtime.sendMessage is not available");
       abbreviationsCache = [];
       return;
     }
+
     try {
       chrome.runtime.sendMessage(
-        { type: window.SOTE_CONSTANTS.MESSAGE_TYPES.GET_ABBREVIATIONS },
+        { type: window.SOTE_CONSTANTS?.MESSAGE_TYPES?.GET_ABBREVIATIONS },
         response => {
           if (chrome.runtime.lastError) {
-            console.error(
-              "[SOTE DEBUG content-script] Erro em fetchAbbreviations sendMessage:",
+            logError(
+              "Error in fetchAbbreviations:",
               chrome.runtime.lastError.message
             );
             abbreviationsCache = [];
             return;
           }
-          if (response && response.abbreviations) {
+
+          if (response?.abbreviations) {
             abbreviationsCache = response.abbreviations.filter(
               abbr => abbr.enabled
             );
-          } else if (response && response.error) {
-            console.error(
-              "[SOTE DEBUG content-script] Falha ao buscar abreviações do service worker:",
-              response.error
-            );
+          } else if (response?.error) {
+            logError("Failed to fetch abbreviations:", response.error);
             abbreviationsCache = [];
           } else {
             abbreviationsCache = [];
           }
         }
       );
-    } catch (e) {
-      console.error(
-        "[SOTE DEBUG content-script] Exceção durante sendMessage em fetchAbbreviations:",
-        e
-      );
+    } catch (error) {
+      logError("Exception during fetchAbbreviations:", error);
       abbreviationsCache = [];
     }
   }
 
+  // ===== TEXT EXTRACTION =====
+  function getTextAndCursorPosition(element) {
+    if (element.isContentEditable) {
+      const selection = window.getSelection();
+      if (selection.rangeCount === 0) return null;
+
+      const range = selection.getRangeAt(0);
+      return {
+        text: range.startContainer.textContent || "",
+        cursorPosition: range.startOffset,
+        range,
+      };
+    } else {
+      return {
+        text: element.value,
+        cursorPosition: element.selectionStart,
+      };
+    }
+  }
+
+  function findWordAtCursor(text, cursorPosition) {
+    if (!text || cursorPosition < 0) return null;
+
+    // Encontrar início da palavra
+    let wordStart = cursorPosition;
+    let tempPos = cursorPosition - 1;
+
+    // Pular espaços em branco antes do cursor
+    while (tempPos >= 0 && WHITESPACE_REGEX.test(text.charAt(tempPos))) {
+      tempPos--;
+    }
+    wordStart = tempPos + 1;
+
+    // Encontrar o verdadeiro início da palavra
+    while (
+      wordStart > 0 &&
+      !WHITESPACE_REGEX.test(text.charAt(wordStart - 1))
+    ) {
+      wordStart--;
+    }
+
+    const word = text.substring(wordStart, cursorPosition);
+    return word ? { word, wordStart } : null;
+  }
+
+  // ===== EXPANSION LOGIC =====
+  async function performExpansion(
+    element,
+    abbreviation,
+    expansion,
+    rules,
+    event
+  ) {
+    try {
+      let expanded = false;
+
+      if (element.isContentEditable) {
+        if (
+          typeof TextExpander?.expandAbbreviationInContentEditable ===
+          "function"
+        ) {
+          expanded = await TextExpander.expandAbbreviationInContentEditable(
+            abbreviation.abbreviation,
+            abbreviation.expansion,
+            rules
+          );
+        }
+      } else {
+        if (typeof TextExpander?.expandAbbreviation === "function") {
+          expanded = await TextExpander.expandAbbreviation(
+            element,
+            abbreviation.abbreviation,
+            abbreviation.expansion,
+            rules
+          );
+        }
+      }
+
+      if (expanded) {
+        handleSpaceInsertion(element, event);
+        updateUsageStats(abbreviation.abbreviation);
+        return true;
+      }
+    } catch (error) {
+      logError("Error during expansion:", error);
+    }
+
+    return false;
+  }
+
+  function handleSpaceInsertion(element, event) {
+    if (event.key !== " " || !settings.triggerSpace) return;
+
+    try {
+      if (element.isContentEditable) {
+        insertSpaceInContentEditable(element);
+      } else {
+        insertSpaceInInput(element);
+      }
+    } catch (error) {
+      logError("Error inserting space:", error);
+    }
+  }
+
+  function insertSpaceInContentEditable(element) {
+    const selection = window.getSelection();
+    if (selection.rangeCount === 0) return;
+
+    const range = selection.getRangeAt(0);
+    const spaceNode = document.createTextNode(" ");
+
+    range.insertNode(spaceNode);
+    range.setStartAfter(spaceNode);
+    range.collapse(true);
+    selection.removeAllRanges();
+    selection.addRange(range);
+
+    // Disparar evento de input
+    let editableElement = element;
+    while (editableElement && !editableElement.isContentEditable) {
+      editableElement = editableElement.parentNode;
+    }
+
+    if (editableElement?.isContentEditable) {
+      editableElement.dispatchEvent(
+        new Event("input", { bubbles: true, composed: true })
+      );
+    }
+  }
+
+  function insertSpaceInInput(element) {
+    const currentPos = element.selectionStart;
+    const valueBeforeCursor = element.value.substring(0, currentPos);
+    const valueAfterCursor = element.value.substring(currentPos);
+
+    element.value = valueBeforeCursor + " " + valueAfterCursor;
+    element.setSelectionRange(currentPos + 1, currentPos + 1);
+    element.dispatchEvent(new Event("input", { bubbles: true }));
+  }
+
+  function updateUsageStats(abbreviation) {
+    if (!isRuntimeAvailable()) return;
+
+    chrome.runtime.sendMessage(
+      {
+        type: window.SOTE_CONSTANTS?.MESSAGE_TYPES?.UPDATE_USAGE,
+        abbreviation: abbreviation,
+      },
+      response => {
+        if (chrome.runtime.lastError) {
+          // Silent fail - não é crítico
+        }
+      }
+    );
+  }
+
+  // ===== MAIN EVENT HANDLERS =====
   async function handleKeyDown(event) {
     if (!isEnabled || !event.target) return;
 
     const element = event.target;
 
-    // VERIFICAÇÃO DA LISTA DE EXCLUSÃO
-    if (isExpansionExcluded(element)) {
-      return; // Aborta se o elemento ou domínio estiver na lista de exclusão.
-    }
+    // Verificação de exclusão
+    if (isExpansionExcluded(element)) return;
 
-    const isEditableField =
-      element.isContentEditable ||
-      element.tagName === "INPUT" ||
-      element.tagName === "TEXTAREA";
+    // Verificação se é campo editável
+    if (!isEditableElement(element)) return;
 
-    if (!isEditableField) return;
-
-    const triggerNameFromKey = TRIGGER_KEYS_MAP[event.key];
-    const triggerNameFromCode = TRIGGER_KEYS_MAP[event.code]; // Fallback for some keys like Space
-    const triggerName = triggerNameFromKey || triggerNameFromCode;
-
+    // Handle backspace undo
     if (event.key === "Backspace" && settings.enableUndo) {
       if (element._lastExpansion) {
         handleBackspaceUndo(event);
-        return;
       }
       return;
     }
 
-    if (!triggerName || !settings[triggerName]) {
+    // Verificar se é uma tecla trigger
+    const triggerName =
+      TRIGGER_KEYS_MAP[event.key] || TRIGGER_KEYS_MAP[event.code];
+    if (!triggerName || !settings[triggerName]) return;
+
+    // Extrair texto e posição do cursor
+    const textInfo = getTextAndCursorPosition(element);
+    if (!textInfo) return;
+
+    // Encontrar palavra no cursor
+    const wordInfo = findWordAtCursor(textInfo.text, textInfo.cursorPosition);
+    if (!wordInfo) return;
+
+    // Verificar se há TextExpander disponível
+    if (typeof TextExpander?.matchAbbreviation !== "function") {
+      logError("TextExpander.matchAbbreviation is not defined!");
       return;
     }
 
-    let text = "";
-    let cursorPosition = 0;
-
-    if (element.isContentEditable) {
-      const selection = window.getSelection();
-      if (selection.rangeCount > 0) {
-        const range = selection.getRangeAt(0);
-        text = range.startContainer.textContent || "";
-        cursorPosition = range.startOffset;
-      } else {
-        return;
-      }
-    } else {
-      text = element.value;
-      cursorPosition = element.selectionStart;
-    }
-
-    let wordStart = cursorPosition;
-    let tempPos = cursorPosition - 1;
-    while (tempPos >= 0 && /\s/.test(text.charAt(tempPos))) {
-      tempPos--;
-    }
-    wordStart = tempPos + 1;
-
-    while (wordStart > 0 && !/\s/.test(text.charAt(wordStart - 1))) {
-      wordStart--;
-    }
-    const word = text.substring(wordStart, cursorPosition);
-
-    if (!word) return;
-
+    // Procurar por abreviações correspondentes
     for (const abbr of abbreviationsCache) {
       if (
-        typeof TextExpander === "undefined" ||
-        typeof TextExpander.matchAbbreviation !== "function"
-      ) {
-        console.error(
-          "[SOTE DEBUG content-script] TextExpander.matchAbbreviation não está definido!"
-        );
-        return;
-      }
-
-      if (
         TextExpander.matchAbbreviation(
-          word,
+          wordInfo.word,
           abbr.abbreviation,
           abbr.caseSensitive
         )
       ) {
         event.preventDefault();
-        let expanded = false;
-        const rulesToPass = Array.isArray(abbr.rules) ? abbr.rules : [];
 
-        if (element.isContentEditable) {
-          expanded = await TextExpander.expandAbbreviationInContentEditable(
-            abbr.abbreviation,
-            abbr.expansion,
-            rulesToPass
-          );
-        } else {
-          expanded = await TextExpander.expandAbbreviation(
-            element,
-            abbr.abbreviation,
-            abbr.expansion,
-            rulesToPass
-          );
-        }
+        const rules = Array.isArray(abbr.rules) ? abbr.rules : [];
+        const expanded = await performExpansion(
+          element,
+          abbr,
+          abbr.expansion,
+          rules,
+          event
+        );
 
-        if (expanded) {
-          if (event.key === " " && settings.triggerSpace) {
-            if (element.isContentEditable) {
-              const selection = window.getSelection();
-              if (selection.rangeCount > 0) {
-                const range = selection.getRangeAt(0);
-                const spaceNode = document.createTextNode(" ");
-                range.insertNode(spaceNode);
-                range.setStartAfter(spaceNode);
-                range.collapse(true);
-                selection.removeAllRanges();
-                selection.addRange(range);
-                let editableElement = element;
-                while (editableElement && !editableElement.isContentEditable) {
-                  editableElement = editableElement.parentNode;
-                }
-                if (editableElement && editableElement.isContentEditable) {
-                  editableElement.dispatchEvent(
-                    new Event("input", { bubbles: true, composed: true })
-                  );
-                }
-              }
-            } else {
-              const currentPos = element.selectionStart;
-              const valueBeforeCursor = element.value.substring(0, currentPos);
-              const valueAfterCursor = element.value.substring(currentPos);
-              element.value = valueBeforeCursor + " " + valueAfterCursor;
-              element.setSelectionRange(currentPos + 1, currentPos + 1);
-              element.dispatchEvent(new Event("input", { bubbles: true }));
-            }
-          }
-
-          if (chrome.runtime && chrome.runtime.sendMessage) {
-            chrome.runtime.sendMessage(
-              {
-                type: window.SOTE_CONSTANTS.MESSAGE_TYPES.UPDATE_USAGE,
-                abbreviation: abbr.abbreviation,
-              },
-              response => {
-                if (chrome.runtime.lastError) {
-                }
-              }
-            );
-          }
-          break;
-        }
+        if (expanded) break;
       }
     }
   }
 
   function handleBackspaceUndo(event) {
     const element = event.target;
-    if (!element || !element._lastExpansion) return;
+    if (!element?._lastExpansion) return;
 
     event.preventDefault();
 
-    if (element.isContentEditable) {
-      TextExpander.undoExpansionInContentEditable(element);
-    } else {
-      TextExpander.undoExpansion(element);
+    try {
+      if (element.isContentEditable) {
+        if (
+          typeof TextExpander?.undoExpansionInContentEditable === "function"
+        ) {
+          TextExpander.undoExpansionInContentEditable(element);
+        }
+      } else {
+        if (typeof TextExpander?.undoExpansion === "function") {
+          TextExpander.undoExpansion(element);
+        }
+      }
+    } catch (error) {
+      logError("Error during undo:", error);
     }
   }
 
-  function init() {
-    loadSettings();
-    fetchAbbreviations();
-    document.addEventListener("keydown", handleKeyDown, true);
-
-    setTimeout(() => {
-      if (window.SoteAutocomplete) {
-        window.SoteAutocomplete.init();
-        updateAutocompleteSettings();
-      }
-    }, 100);
-
-    chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-      if (
-        message.type ===
-          window.SOTE_CONSTANTS.MESSAGE_TYPES.ABBREVIATIONS_UPDATED ||
-        message.type ===
-          window.SOTE_CONSTANTS.MESSAGE_TYPES.INITIAL_SEED_COMPLETE
-      ) {
-        fetchAbbreviations();
-      } else if (
-        message.type === window.SOTE_CONSTANTS.MESSAGE_TYPES.TOGGLE_ENABLED
-      ) {
-        isEnabled = message.enabled;
-      } else if (
-        message.type === window.SOTE_CONSTANTS.MESSAGE_TYPES.SETTINGS_UPDATED
-      ) {
-        settings = { ...settings, ...message.settings };
-        updateAutocompleteSettings();
-      }
-      return false;
-    });
-
-    observeShadowDom();
-  }
-
+  // ===== SHADOW DOM SUPPORT =====
   function observeShadowDom() {
-    const observer = new MutationObserver(mutations => {
-      for (const mutation of mutations) {
-        if (mutation.type === "childList") {
-          for (const node of mutation.addedNodes) {
-            if (node instanceof Element) {
-              if (node.shadowRoot) {
-                attachShadowListeners(node.shadowRoot);
-              }
-              const shadowElements = node.querySelectorAll("*");
-              for (const element of shadowElements) {
-                if (element.shadowRoot) {
-                  attachShadowListeners(element.shadowRoot);
-                }
+    const observer = new MutationObserver(
+      debounce(mutations => {
+        for (const mutation of mutations) {
+          if (mutation.type === "childList") {
+            for (const node of mutation.addedNodes) {
+              if (node instanceof Element) {
+                processShadowElements(node);
               }
             }
           }
         }
-      }
-    });
+      }, 100)
+    );
+
     observer.observe(document.documentElement, {
       childList: true,
       subtree: true,
     });
-    const shadowElements = document.querySelectorAll("*");
-    for (const element of shadowElements) {
-      if (element.shadowRoot) {
-        attachShadowListeners(element.shadowRoot);
+
+    // Processar elementos existentes
+    processShadowElements(document.documentElement);
+  }
+
+  function processShadowElements(element) {
+    if (element.shadowRoot && !shadowObservers.has(element.shadowRoot)) {
+      attachShadowListeners(element.shadowRoot);
+    }
+
+    const shadowElements = element.querySelectorAll("*");
+    for (const shadowElement of shadowElements) {
+      if (
+        shadowElement.shadowRoot &&
+        !shadowObservers.has(shadowElement.shadowRoot)
+      ) {
+        attachShadowListeners(shadowElement.shadowRoot);
       }
     }
   }
 
   function attachShadowListeners(shadowRoot) {
+    if (shadowObservers.has(shadowRoot)) return;
+
+    shadowObservers.add(shadowRoot);
     shadowRoot.addEventListener("keydown", handleKeyDown, true);
-    const observer = new MutationObserver(mutations => {
-      for (const mutation of mutations) {
-        if (mutation.type === "childList") {
-          for (const node of mutation.addedNodes) {
-            if (node instanceof Element) {
-              if (node.shadowRoot) {
-                attachShadowListeners(node.shadowRoot);
-              }
-              const shadowElements = node.querySelectorAll("*");
-              for (const element of shadowElements) {
-                if (element.shadowRoot) {
-                  attachShadowListeners(element.shadowRoot);
-                }
+
+    const observer = new MutationObserver(
+      debounce(mutations => {
+        for (const mutation of mutations) {
+          if (mutation.type === "childList") {
+            for (const node of mutation.addedNodes) {
+              if (node instanceof Element) {
+                processShadowElements(node);
               }
             }
           }
         }
-      }
-    });
+      }, 100)
+    );
+
     observer.observe(shadowRoot, {
       childList: true,
       subtree: true,
     });
   }
 
+  // ===== MESSAGE HANDLING =====
+  function setupMessageListeners() {
+    if (!isRuntimeAvailable()) return;
+
+    chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+      const messageType = message.type;
+      const constants = window.SOTE_CONSTANTS?.MESSAGE_TYPES;
+
+      if (!constants) return false;
+
+      switch (messageType) {
+        case constants.ABBREVIATIONS_UPDATED:
+        case constants.INITIAL_SEED_COMPLETE:
+          fetchAbbreviations();
+          break;
+
+        case constants.TOGGLE_ENABLED:
+          isEnabled = message.enabled;
+          break;
+
+        case constants.SETTINGS_UPDATED:
+          settings = { ...settings, ...message.settings };
+          updateAutocompleteSettings();
+          break;
+      }
+
+      return false;
+    });
+  }
+
+  // ===== INITIALIZATION =====
+  function initializeAutocomplete() {
+    setTimeout(() => {
+      if (window.SoteAutocomplete) {
+        try {
+          window.SoteAutocomplete.init();
+          updateAutocompleteSettings();
+        } catch (error) {
+          logError("Error initializing autocomplete:", error);
+        }
+      }
+    }, 100);
+  }
+
+  function init() {
+    log("content-script.js loaded at:", new Date().toLocaleTimeString());
+
+    // Verificar dependências
+    if (!window.SOTE_CONSTANTS) {
+      logError("SOTE_CONSTANTS not available");
+      return;
+    }
+
+    try {
+      loadSettings();
+      fetchAbbreviations();
+
+      // Adicionar event listeners
+      document.addEventListener("keydown", handleKeyDown, true);
+      setupMessageListeners();
+
+      // Inicializar funcionalidades adicionais
+      initializeAutocomplete();
+      observeShadowDom();
+
+      log("Initialization complete");
+    } catch (error) {
+      logError("Error during initialization:", error);
+    }
+  }
+
+  // ===== CLEANUP =====
+  window.addEventListener("beforeunload", () => {
+    clearTimeout(debounceTimer);
+    if (isExpansionExcluded._hostnameCache) {
+      isExpansionExcluded._hostnameCache.clear();
+    }
+  });
+
+  // Start the extension
   init();
 })();
