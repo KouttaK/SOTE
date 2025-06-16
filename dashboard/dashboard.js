@@ -98,6 +98,8 @@ const ruleExpansionTextarea = document.getElementById("rule-expansion");
 const rulesModalInsertActionButtons = document.querySelectorAll(
   "#rules-modal .btn-insert-action"
 );
+const ruleBtnInsertChoice = document.getElementById("rule-btn-insert-choice");
+const ruleBtnEditChoice = document.getElementById("rule-btn-edit-choice");
 const dayCheckboxes = document.querySelectorAll('input[name="rule-day"]');
 const startHourInput = document.getElementById("start-hour");
 const startMinuteInput = document.getElementById("start-minute");
@@ -131,6 +133,7 @@ let currentCategory = "all";
 let currentSort = { column: "abbreviation", direction: "asc" };
 let currentEditId = null;
 let currentChoiceIdForEdit = null;
+let activeTextareaForChoice = null;
 let isEnabled = true;
 let settings = {
   maxChoices: 3, // Valor Padrão
@@ -241,15 +244,14 @@ async function init() {
   modalCancel.addEventListener("click", hideModal);
   modalSave.addEventListener("click", handleSaveAbbreviation);
   expansionTextarea.addEventListener("input", updateChoiceButtonsVisibility);
-  mainModalInsertActionButtons.forEach(button =>
-    button.addEventListener("click", function () {
-      insertTextAtCursor(expansionTextarea, this.dataset.action);
-    })
-  );
 
   // Eventos do Modal de Escolha
-  btnInsertChoice.addEventListener("click", () => showChoiceConfigModal());
+  btnInsertChoice.addEventListener("click", () => {
+    activeTextareaForChoice = expansionTextarea;
+    showChoiceConfigModal();
+  });
   btnEditChoice.addEventListener("click", handleEditChoice);
+
   choiceModalClose.addEventListener("click", hideChoiceConfigModal);
   choiceModalCancel.addEventListener("click", hideChoiceConfigModal);
   addChoiceOptionBtn.addEventListener("click", () => addChoiceOption());
@@ -291,11 +293,16 @@ async function init() {
   addRuleBtn.addEventListener("click", handleShowRuleForm);
   ruleTypeSelect.addEventListener("change", handleRuleTypeChange);
   rulesModalSaveBtn.addEventListener("click", handleSaveRule);
-  rulesModalInsertActionButtons.forEach(button =>
-    button.addEventListener("click", function () {
-      insertTextAtCursor(ruleExpansionTextarea, this.dataset.action);
-    })
+  ruleExpansionTextarea.addEventListener(
+    "input",
+    updateRuleChoiceButtonsVisibility
   );
+  ruleBtnInsertChoice.addEventListener("click", () => {
+    activeTextareaForChoice = ruleExpansionTextarea;
+    showChoiceConfigModal();
+  });
+  ruleBtnEditChoice.addEventListener("click", handleEditChoice);
+
   addSubConditionBtn?.addEventListener("click", () =>
     handleAddSubCondition(null)
   );
@@ -670,11 +677,34 @@ function updateChoiceButtonsVisibility() {
   }
 }
 
+function updateRuleChoiceButtonsVisibility() {
+  const expansionText = ruleExpansionTextarea.value;
+  const choiceRegex = /\$choice\(id=(\d+)\)\$/;
+  const match = expansionText.match(choiceRegex);
+
+  if (match && match[1]) {
+    currentChoiceIdForEdit = parseInt(match[1], 10);
+    ruleBtnInsertChoice.classList.add("hidden");
+    ruleBtnEditChoice.classList.remove("hidden");
+  } else {
+    currentChoiceIdForEdit = null;
+    ruleBtnInsertChoice.classList.remove("hidden");
+    ruleBtnEditChoice.classList.add("hidden");
+  }
+}
+
 async function handleEditChoice() {
   if (!currentChoiceIdForEdit) {
     SoteNotifier.show("Nenhuma escolha encontrada para editar.", "error");
     return;
   }
+  // Determina qual textarea está ativa para a edição
+  if (ruleForm && !ruleForm.classList.contains("hidden")) {
+    activeTextareaForChoice = ruleExpansionTextarea;
+  } else {
+    activeTextareaForChoice = expansionTextarea;
+  }
+
   try {
     const choiceData = await window.TextExpanderDB.getChoice(
       currentChoiceIdForEdit
@@ -783,9 +813,22 @@ async function handleSaveChoice() {
       // Lógica de criação (existente)
       const newChoiceId = await window.TextExpanderDB.addChoice(options);
       const placeholder = `$choice(id=${newChoiceId})$`;
-      insertTextAtCursor(expansionTextarea, placeholder);
+      if (activeTextareaForChoice) {
+        insertTextAtCursor(activeTextareaForChoice, placeholder);
+      } else {
+        SoteNotifier.show(
+          "Erro: Campo de texto de destino não encontrado.",
+          "error"
+        );
+        return;
+      }
       SoteNotifier.show("Ação de escolha configurada e inserida!", "success");
-      updateChoiceButtonsVisibility(); // Atualiza os botões após inserir
+      // Atualiza os botões do contexto correto
+      if (activeTextareaForChoice === expansionTextarea) {
+        updateChoiceButtonsVisibility();
+      } else if (activeTextareaForChoice === ruleExpansionTextarea) {
+        updateRuleChoiceButtonsVisibility();
+      }
     }
     hideChoiceConfigModal();
   } catch (error) {
@@ -886,6 +929,7 @@ function handleShowRuleForm() {
   ruleForm.classList.remove("hidden");
   addRuleBtn.classList.add("hidden");
   ruleForm.querySelector("h3").textContent = "Nova Regra";
+  updateRuleChoiceButtonsVisibility();
 }
 
 function resetRuleForm() {
@@ -1052,6 +1096,7 @@ function handleEditRule(rule) {
   }
   addRuleBtn.classList.add("hidden");
   ruleForm.classList.remove("hidden");
+  updateRuleChoiceButtonsVisibility();
 }
 
 async function handleDeleteRule(ruleId) {
