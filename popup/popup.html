@@ -1,141 +1,275 @@
 <!DOCTYPE html>
 <html lang="pt-br">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SOTE - Expansor de Texto</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="popup.css">
-</head>
-<body>
-  <div class="popup-container">
-    <header class="popup-header">
-      <div class="header-content">
-        <div class="logo-section">
-          <div class="logo-icon" aria-hidden="true">S</div>
-          <div class="logo-text">
-            <h1>SOTE</h1>
-            <span class="subtitle">Expansor de Texto</span>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SOTE - Expansor de Texto</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <div class="popup-container">
+      <header class="popup-header">
+        <div class="header-content">
+          <div class="logo-section">
+            <div class="logo-icon" aria-hidden="true">S</div>
+            <div class="logo-text">
+              <h1>SOTE</h1>
+              <span class="subtitle">Expansor de Texto</span>
+            </div>
+          </div>
+          <div class="toggle-container">
+            <label class="toggle" for="enabled-toggle">
+              <input
+                type="checkbox"
+                id="enabled-toggle"
+                checked
+                aria-describedby="status-text"
+              />
+              <span class="toggle-slider" aria-hidden="true"></span>
+              <span class="sr-only">Alternar ativação do expansor</span>
+            </label>
+            <span id="status-text" role="status" aria-live="polite"
+              >Habilitado</span
+            >
           </div>
         </div>
-        <div class="toggle-container">
-          <label class="toggle" for="enabled-toggle">
-            <input type="checkbox" id="enabled-toggle" checked aria-describedby="status-text">
-            <span class="toggle-slider" aria-hidden="true"></span>
-            <span class="sr-only">Alternar ativação do expansor</span>
-          </label>
-          <span id="status-text" role="status" aria-live="polite">Habilitado</span>
+      </header>
+
+      <div class="search-container">
+        <div class="search-wrapper">
+          <svg
+            class="search-icon"
+            xmlns="http://www.w3.org/2000/svg"
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <circle cx="11" cy="11" r="8"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+          </svg>
+          <input
+            type="text"
+            id="search-input"
+            placeholder="Buscar abreviações..."
+            aria-label="Buscar abreviações"
+            autocomplete="off"
+            spellcheck="false"
+          />
         </div>
       </div>
-    </header>
-    
-    <div class="search-container">
-      <div class="search-wrapper">
-        <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <circle cx="11" cy="11" r="8"></circle>
-          <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-        </svg>
-        <input 
-          type="text" 
-          id="search-input" 
-          placeholder="Buscar abreviações..." 
-          aria-label="Buscar abreviações"
-          autocomplete="off"
-          spellcheck="false"
+
+      <main class="abbreviations-container">
+        <div
+          class="abbreviations-list"
+          id="abbreviations-list"
+          role="list"
+          aria-label="Lista de abreviações"
         >
-      </div>
-    </div>
-    
-    <main class="abbreviations-container">
-      <div class="abbreviations-list" id="abbreviations-list" role="list" aria-label="Lista de abreviações">
-        <div class="loading" role="status" aria-live="polite">
-          <div class="loading-spinner" aria-hidden="true"></div>
-          <p>Carregando abreviações...</p>
+          <div class="loading" role="status" aria-live="polite">
+            <div class="loading-spinner" aria-hidden="true"></div>
+            <p>Carregando abreviações...</p>
+          </div>
         </div>
-      </div>
-    </main>
-    
-    <footer class="quick-actions-container">
-      <button id="add-btn" class="btn btn-primary" type="button">
-        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <line x1="12" y1="5" x2="12" y2="19"></line>
-          <line x1="5" y1="12" x2="19" y2="12"></line>
-        </svg>
-        <span>Adicionar Nova</span>
-      </button>
-      <button id="dashboard-btn" class="btn btn-secondary" type="button">
-        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-          <line x1="9" y1="9" x2="15" y2="9"></line>
-          <line x1="9" y1="15" x2="15" y2="15"></line>
-        </svg>
-        <span>Painel</span>
-      </button>
-    </footer>
-    
-    <div id="add-edit-modal" class="modal-container hidden" role="dialog" aria-labelledby="modal-title" aria-modal="true">
-      <div class="modal">
-        <div class="modal-header">
+      </main>
+
+      <footer class="quick-actions-container">
+        <button id="add-btn" class="btn btn-primary" type="button">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <line x1="12" y1="5" x2="12" y2="19"></line>
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+          </svg>
+          <span>Adicionar Nova</span>
+        </button>
+        <button id="dashboard-btn" class="btn btn-secondary" type="button">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+            <line x1="9" y1="9" x2="15" y2="9"></line>
+            <line x1="9" y1="15" x2="15" y2="15"></line>
+          </svg>
+          <span>Painel</span>
+        </button>
+      </footer>
+
+      <div
+        id="add-edit-modal"
+        class="modal-container hidden"
+        role="dialog"
+        aria-labelledby="modal-title"
+        aria-modal="true"
+      >
+        <div class="modal">
+          <div class="modal-header">
             <h2 id="modal-title">Adicionar Nova Abreviação</h2>
-            <button id="modal-close-btn" class="modal-close" aria-label="Fechar modal">
-                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                    <line x1="18" y1="6" x2="6" y2="18"></line>
-                    <line x1="6" y1="6" x2="18" y2="18"></line>
-                </svg>
+            <button
+              id="modal-close-btn"
+              class="modal-close"
+              aria-label="Fechar modal"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
             </button>
-        </div>
-        <div class="modal-body">
+          </div>
+          <div class="modal-body">
             <form id="abbreviation-form" novalidate>
-                <div class="form-group">
-                    <label for="new-abbreviation">Abreviação <span aria-hidden="true">*</span></label>
-                    <input type="text" id="new-abbreviation" placeholder="Ex: tdb, vlw, pf" required autocomplete="off" spellcheck="false">
+              <div class="form-group">
+                <label for="new-abbreviation"
+                  >Abreviação <span aria-hidden="true">*</span></label
+                >
+                <input
+                  type="text"
+                  id="new-abbreviation"
+                  placeholder="Ex: tdb, vlw, pf"
+                  required
+                  autocomplete="off"
+                  spellcheck="false"
+                />
+              </div>
+              <div class="form-group">
+                <label for="new-expansion"
+                  >Expansão <span aria-hidden="true">*</span></label
+                >
+                <textarea
+                  id="new-expansion"
+                  placeholder="Ex: tudo bem, valeu, por favor"
+                  required
+                  rows="3"
+                  spellcheck="false"
+                ></textarea>
+                <div class="action-buttons-container">
+                  <button
+                    type="button"
+                    class="btn-insert-action"
+                    data-action="$cursor$"
+                    title="Posiciona o cursor de texto aqui após a expansão"
+                  >
+                    📍 Posição do Cursor
+                  </button>
+                  <button
+                    type="button"
+                    class="btn-insert-action"
+                    data-action="$transferencia$"
+                    title="Insere o conteúdo atual da área de transferência"
+                  >
+                    📋 Área de Transferência
+                  </button>
                 </div>
-                <div class="form-group">
-                    <label for="new-expansion">Expansão <span aria-hidden="true">*</span></label>
-                    <textarea id="new-expansion" placeholder="Ex: tudo bem, valeu, por favor" required rows="3" spellcheck="false"></textarea>
-                    <div class="action-buttons-container">
-                        <button type="button" class="btn-insert-action" data-action="$cursor$" title="Posiciona o cursor de texto aqui após a expansão">📍 Posição do Cursor</button>
-                        <button type="button" class="btn-insert-action" data-action="$transferencia$" title="Insere o conteúdo atual da área de transferência">📋 Área de Transferência</button>
-                    </div>
-                </div>
-                <div class="form-group">
-                    <label for="new-category">Categoria</label>
-                    <select id="new-category">
-                        <option value="Comum">Comum</option>
-                        <option value="Pessoal">Pessoal</option>
-                        <option value="Trabalho">Trabalho</option>
-                        <option value="Personalizada">Personalizada</option>
-                    </select>
-                </div>
-                <div class="form-group" id="custom-category-group" style="display: none;">
-                    <label for="new-custom-category">Nome da Categoria Personalizada <span aria-hidden="true">*</span></label>
-                    <input type="text" id="new-custom-category" placeholder="Ex: Estudos, Jogos" autocomplete="off" spellcheck="false">
-                </div>
-                <div class="form-group checkbox">
-                    <input type="checkbox" id="new-case-sensitive">
-                    <label for="new-case-sensitive">Diferenciar maiúsculas e minúsculas</label>
-                </div>
+              </div>
+              <div class="form-group">
+                <label for="new-category">Categoria</label>
+                <select id="new-category">
+                  <option value="Comum">Comum</option>
+                  <option value="Pessoal">Pessoal</option>
+                  <option value="Trabalho">Trabalho</option>
+                  <option value="Personalizada">Personalizada</option>
+                </select>
+              </div>
+              <div
+                class="form-group"
+                id="custom-category-group"
+                style="display: none;"
+              >
+                <label for="new-custom-category"
+                  >Nome da Categoria Personalizada
+                  <span aria-hidden="true">*</span></label
+                >
+                <input
+                  type="text"
+                  id="new-custom-category"
+                  placeholder="Ex: Estudos, Jogos"
+                  autocomplete="off"
+                  spellcheck="false"
+                />
+              </div>
+              <div class="form-group checkbox">
+                <input type="checkbox" id="new-case-sensitive" />
+                <label for="new-case-sensitive"
+                  >Diferenciar maiúsculas e minúsculas</label
+                >
+              </div>
             </form>
-        </div>
-        <div class="modal-footer">
-            <button id="cancel-btn" class="btn btn-secondary" type="button">Cancelar</button>
-            <button id="save-btn" class="btn btn-primary" type="submit" form="abbreviation-form">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                    <polyline points="20,6 9,17 4,12"></polyline>
-                </svg>
-                Salvar
+          </div>
+          <div class="modal-footer">
+            <button id="cancel-btn" class="btn btn-secondary" type="button">
+              Cancelar
             </button>
+            <button
+              id="save-btn"
+              class="btn btn-primary"
+              type="submit"
+              form="abbreviation-form"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <polyline points="20,6 9,17 4,12"></polyline>
+              </svg>
+              Salvar
+            </button>
+          </div>
         </div>
       </div>
     </div>
-  </div>
-  
-  <script src="../utils/constants.js"></script> 
-  <script src="../utils/db.js"></script>
-  <script src="../utils/notifier.js"></script>
-  <script src="../utils/confirmationModal.js"></script>
-  <script src="popup.js"></script>
-</body>
+
+    <script src="../utils/constants.js"></script>
+    <script src="../utils/db.js"></script>
+    <script src="../utils/notifier.js"></script>
+    <script src="../utils/confirmationModal.js"></script>
+    <script src="popup.js"></script>
+  </body>
 </html>

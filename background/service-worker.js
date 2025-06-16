@@ -153,9 +153,10 @@ async function initializeDatabase() {
 
     log("Initializing database...");
 
+    // As migrações, incluindo a criação do novo 'STORE_CHOICES', são tratadas aqui
     const db = await retryOperation(() => TextExpanderDB.openDatabase());
 
-    // Verify database structure
+    // Verifica a estrutura do banco de dados
     const transaction = db.transaction(
       [
         self.SOTE_CONSTANTS.STORE_ABBREVIATIONS,
@@ -168,7 +169,7 @@ async function initializeDatabase() {
       self.SOTE_CONSTANTS.STORE_ABBREVIATIONS
     );
 
-    // Check if we need to seed default data
+    // Verifica se precisa popular com dados padrão
     const existingCount = await new Promise((resolve, reject) => {
       const countRequest = store.count();
       countRequest.onsuccess = () => resolve(countRequest.result);
@@ -196,7 +197,6 @@ async function seedDefaultAbbreviations() {
   const results = await Promise.allSettled(
     defaultAbbreviations.map(async abbr => {
       try {
-        // Check if abbreviation already exists
         const existing = await TextExpanderDB.getAbbreviation(
           abbr.abbreviation
         );
@@ -240,7 +240,6 @@ async function notifyInitializationComplete() {
     });
     log("Sent INITIAL_SEED_COMPLETE notification");
   } catch (error) {
-    // This is expected if no content scripts are listening yet
     log("Could not send INITIAL_SEED_COMPLETE (no receivers)");
   }
 }
@@ -290,7 +289,6 @@ async function handleUpdateUsage(message, sender, sendResponse) {
       return;
     }
 
-    // Update usage statistics
     const updatedData = {
       ...abbrData,
       usageCount: (abbrData.usageCount || 0) + 1,
@@ -308,12 +306,40 @@ async function handleUpdateUsage(message, sender, sendResponse) {
       usageCount: updatedData.usageCount,
     });
 
-    // Broadcast update to content scripts
     broadcastAbbreviationsUpdate();
   } catch (error) {
     logError("Failed to update usage stats:", error);
     sendResponse({
       error: "Failed to update usage statistics",
+      details: error.message,
+    });
+  }
+}
+
+// NOVO: Handler para buscar a configuração de uma escolha
+async function handleGetChoiceConfig(message, sender, sendResponse) {
+  try {
+    validateDatabase();
+    const choiceId = message.id;
+    if (!choiceId) {
+      sendResponse({ error: "ID da escolha não fornecido" });
+      return;
+    }
+
+    // A função getChoice deve ter sido adicionada em utils/db.js
+    const choiceData = await TextExpanderDB.getChoice(choiceId);
+
+    if (choiceData) {
+      sendResponse({ data: choiceData });
+    } else {
+      sendResponse({
+        error: `Configuração de escolha com ID ${choiceId} não encontrada.`,
+      });
+    }
+  } catch (error) {
+    logError("Falha ao buscar configuração de escolha:", error);
+    sendResponse({
+      error: "Falha ao buscar configuração de escolha",
       details: error.message,
     });
   }
@@ -334,7 +360,6 @@ const broadcastAbbreviationsUpdate = debounce(async () => {
             });
             return { success: true, tabId: tab.id };
           } catch (error) {
-            // Ignore tabs that don't have content scripts
             if (
               !error.message
                 ?.toLowerCase()
@@ -363,7 +388,6 @@ async function handleSettingsUpdate(changes) {
     const tabs = await chrome.tabs.query({});
     const settings = {};
 
-    // Extract relevant settings from changes
     Object.keys(changes).forEach(key => {
       if (changes[key].newValue !== undefined) {
         settings[key] = changes[key].newValue;
@@ -425,8 +449,6 @@ self.addEventListener("activate", event => {
 
   event.waitUntil(
     (async () => {
-      // Clean up old caches if needed
-      // Take control of all clients immediately
       await self.clients.claim();
       log("Service Worker activated and claimed all clients");
     })()
@@ -449,11 +471,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     switch (messageType) {
       case messageTypes.GET_ABBREVIATIONS:
         handleGetAbbreviations(message, sender, sendResponse);
-        return true; // Indicates async response
+        return true; // Indica resposta assíncrona
 
       case messageTypes.UPDATE_USAGE:
         handleUpdateUsage(message, sender, sendResponse);
-        return true; // Indicates async response
+        return true; // Indica resposta assíncrona
+
+      // NOVO: Case para a nova mensagem
+      case messageTypes.GET_CHOICE_CONFIG:
+        handleGetChoiceConfig(message, sender, sendResponse);
+        return true; // Indica resposta assíncrona
 
       default:
         log(`Unknown message type: ${messageType}`);
@@ -476,12 +503,10 @@ chrome.storage.onChanged.addListener((changes, namespace) => {
 
   log("Storage changes detected:", Object.keys(changes));
 
-  // Handle abbreviations changes
   if (changes.abbreviations) {
     broadcastAbbreviationsUpdate();
   }
 
-  // Handle settings changes (excluding abbreviations)
   const settingsChanges = Object.keys(changes)
     .filter(key => key !== "abbreviations")
     .reduce((obj, key) => {
@@ -498,13 +523,10 @@ chrome.storage.onChanged.addListener((changes, namespace) => {
 chrome.runtime.onStartup.addListener(() => {
   log("Extension startup detected");
 
-  // Verify database and constants are available
   setTimeout(async () => {
     try {
       validateConstants();
       validateDatabase();
-
-      // Optionally refresh abbreviations cache
       await notifyInitializationComplete();
     } catch (error) {
       logError("Startup validation failed:", error);
@@ -536,7 +558,7 @@ self.addEventListener("error", event => {
 
 self.addEventListener("unhandledrejection", event => {
   logError("Unhandled promise rejection in service worker:", event.reason);
-  event.preventDefault(); // Prevent the default handling
+  event.preventDefault();
 });
 
 log("Service Worker script loaded successfully");

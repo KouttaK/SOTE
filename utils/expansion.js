@@ -6,7 +6,7 @@
     new Date().toLocaleTimeString()
   );
 
-  // ===== FUNÇÕES DE VALIDAÇÃO DE DOMÍNIOS =====
+  // ===== FUNÇÕES DE VALIDAÇÃO DE DOMÍNIOS (Inalteradas) =====
   function validateDomain(ruleDomains, currentDomain, currentUrl) {
     if (
       !ruleDomains ||
@@ -52,19 +52,13 @@
   function isDomainMatch(currentDomain, ruleDomain, currentUrl) {
     if (!currentDomain || !ruleDomain) return false;
 
-    // Se a regra inclui um caminho (como "google.com/*"), trata como um padrão de URL.
     if (ruleDomain.includes("/")) {
       let pattern = ruleDomain.replace(/\./g, "\\.").replace(/\*/g, ".*");
-
-      // Trata o caso especial "/*" para corresponder também à raiz do domínio.
       if (pattern.endsWith("\\/.*")) {
-        // Transforma "google\.com\/.*" em "google\.com(\/.*)?"
-        // Isso corresponde a "google.com" E "google.com/qualquercoisa"
         pattern = pattern.slice(0, -4) + "(\\/.*)?";
       }
 
       try {
-        // Compara com a URL completa, começando do protocolo.
         const regex = new RegExp(`^https?:\/\/(www\\.)?${pattern}`, "i");
         if (currentUrl && regex.test(currentUrl)) {
           return true;
@@ -75,7 +69,6 @@
       }
     }
 
-    // Lógica original para correspondência apenas de domínio (sem caminho)
     const normalizedRuleDomain = normalizeDomain(ruleDomain);
 
     if (currentDomain === normalizedRuleDomain) {
@@ -142,7 +135,7 @@
     }
   }
 
-  // ===== FUNÇÃO PRINCIPAL DE AVALIAÇÃO DE REGRAS =====
+  // ===== FUNÇÃO PRINCIPAL DE AVALIAÇÃO DE REGRAS (Inalterada) =====
   function evaluateRule(rule, now = new Date()) {
     const currentDay = now.getDay();
     const currentHour = now.getHours();
@@ -185,7 +178,7 @@
         break;
       case "domain":
         const currentDomain = window.location.hostname;
-        const currentUrl = window.location.href; // Passa a URL completa para a validação
+        const currentUrl = window.location.href;
         conditionMet = validateDomain(rule.domains, currentDomain, currentUrl);
         break;
       case "specialDate":
@@ -231,7 +224,6 @@
     return conditionMet;
   }
 
-  // ... (O resto do arquivo permanece inalterado) ...
   function getMatchingExpansion(abbreviationObject, rulesArgument) {
     if (
       !rulesArgument ||
@@ -266,9 +258,77 @@
     }
   }
 
-  async function processSpecialActions(expansionText) {
+  // ===== LÓGICA DE AÇÕES ESPECIAIS (MODIFICADA) =====
+  async function processSpecialActions(expansionText, targetElement) {
     let processedText = expansionText;
     let cursorPosition = -1;
+
+    // Etapa 1: Ação interativa $choice
+    const choiceRegex = /\$choice\(id=(\d+)\)\$/;
+    const choiceMatch = processedText.match(choiceRegex);
+
+    if (choiceMatch) {
+      const placeholder = choiceMatch[0];
+      const choiceId = parseInt(choiceMatch[1], 10);
+      let selectedMessage = "";
+
+      try {
+        const choiceConfig = await new Promise((resolve, reject) => {
+          if (!chrome.runtime || !chrome.runtime.sendMessage) {
+            return reject(
+              new Error("O contexto do runtime não está disponível.")
+            );
+          }
+          chrome.runtime.sendMessage(
+            {
+              type: SOTE_CONSTANTS.MESSAGE_TYPES.GET_CHOICE_CONFIG,
+              id: choiceId,
+            },
+            response => {
+              if (chrome.runtime.lastError) {
+                return reject(new Error(chrome.runtime.lastError.message));
+              }
+              if (response && !response.error) {
+                resolve(response.data);
+              } else {
+                reject(
+                  new Error(
+                    response?.error ||
+                      "Falha ao buscar configuração da escolha."
+                  )
+                );
+              }
+            }
+          );
+        });
+
+        if (
+          !choiceConfig ||
+          !choiceConfig.options ||
+          choiceConfig.options.length === 0
+        ) {
+          throw new Error(
+            `Configuração para Escolha ID ${choiceId} é inválida ou vazia.`
+          );
+        }
+
+        selectedMessage = await SoteChoiceModal.show(
+          choiceConfig.options,
+          targetElement
+        );
+      } catch (error) {
+        console.warn(
+          `[SOTE] Ação de escolha falhou ou foi cancelada: ${error.message}`
+        );
+        selectedMessage = `[ESCOLHA CANCELADA]`;
+      }
+
+      processedText = processedText.replace(placeholder, selectedMessage);
+      // Chama recursivamente para processar outras ações na mensagem escolhida
+      return processSpecialActions(processedText, targetElement);
+    }
+
+    // Etapa 2: Ação $transferencia$
     if (processedText.includes("$transferencia$")) {
       try {
         const clipboardText = await navigator.clipboard.readText();
@@ -284,15 +344,20 @@
         );
       }
     }
+
+    // Etapa 3: Ação final $cursor$
     const cursorMarker = "$cursor$";
     const firstCursorIndex = processedText.indexOf(cursorMarker);
     if (firstCursorIndex !== -1) {
       cursorPosition = firstCursorIndex;
       processedText = processedText.replace(/\$cursor\$/g, "");
     }
+
+    // Caso base da recursão: nenhuma ação restante
     return { text: processedText, cursorPosition };
   }
 
+  // ===== FUNÇÕES DE EXPANSÃO (MODIFICADAS) =====
   async function expandAbbreviation(
     element,
     abbreviationText,
@@ -306,6 +371,7 @@
       wordStart--;
     }
     const word = value.substring(wordStart, originalCursorPos);
+
     if (matchAbbreviation(word, abbreviationText, false)) {
       const contextualExpansion = getMatchingExpansion(
         {
@@ -315,25 +381,31 @@
         },
         rulesArray
       );
+
+      // MODIFICADO: Passa o 'element' para processSpecialActions
       const { text: finalExpansionText, cursorPosition: finalCursorOffset } =
-        await processSpecialActions(contextualExpansion);
+        await processSpecialActions(contextualExpansion, element);
+
       element._lastExpansion = {
         abbreviation: abbreviationText,
         expansion: finalExpansionText,
         originalRawExpansion: contextualExpansion,
         position: { start: wordStart, end: originalCursorPos },
       };
+
       const newValue =
         value.substring(0, wordStart) +
         finalExpansionText +
         value.substring(originalCursorPos);
       element.value = newValue;
+
       let newCursorPos;
       if (finalCursorOffset !== -1) {
         newCursorPos = wordStart + finalCursorOffset;
       } else {
         newCursorPos = wordStart + finalExpansionText.length;
       }
+
       element.setSelectionRange(newCursorPos, newCursorPos);
       element.dispatchEvent(new Event("input", { bubbles: true }));
       return true;
@@ -350,6 +422,16 @@
     if (!selection.rangeCount) return false;
     const range = selection.getRangeAt(0).cloneRange();
     if (!range.startContainer.textContent) return false;
+
+    let editableElementHost = range.startContainer;
+    while (
+      editableElementHost &&
+      editableElementHost.nodeType !== Node.ELEMENT_NODE
+    ) {
+      editableElementHost = editableElementHost.parentNode;
+    }
+    if (!editableElementHost) editableElementHost = document.body;
+
     const text = range.startContainer.textContent;
     const originalCursorPosInNode = range.startOffset;
     let wordStartInNode = originalCursorPosInNode;
@@ -360,6 +442,7 @@
       wordStartInNode--;
     }
     const word = text.substring(wordStartInNode, originalCursorPosInNode);
+
     if (matchAbbreviation(word, abbreviationText, false)) {
       const contextualExpansion = getMatchingExpansion(
         {
@@ -369,8 +452,11 @@
         },
         rulesArray
       );
+
+      // MODIFICADO: Passa 'editableElementHost' para processSpecialActions
       const { text: finalExpansionText, cursorPosition: finalCursorOffset } =
-        await processSpecialActions(contextualExpansion);
+        await processSpecialActions(contextualExpansion, editableElementHost);
+
       const wordRange = document.createRange();
       try {
         wordRange.setStart(range.startContainer, wordStartInNode);
@@ -383,14 +469,7 @@
         });
         return false;
       }
-      let editableElementHost = range.startContainer;
-      while (
-        editableElementHost &&
-        editableElementHost.nodeType !== Node.ELEMENT_NODE
-      ) {
-        editableElementHost = editableElementHost.parentNode;
-      }
-      if (!editableElementHost) editableElementHost = document.body;
+
       editableElementHost._lastExpansion = {
         abbreviation: abbreviationText,
         expansion: finalExpansionText,
@@ -403,10 +482,12 @@
         },
         rawRange: range,
       };
+
       wordRange.deleteContents();
       const textNode = document.createTextNode(finalExpansionText);
       wordRange.insertNode(textNode);
       selection.removeAllRanges();
+
       const newRange = document.createRange();
       if (finalCursorOffset !== -1) {
         const safeCursorOffset = Math.min(finalCursorOffset, textNode.length);
@@ -414,8 +495,10 @@
       } else {
         newRange.setStartAfter(textNode);
       }
+
       newRange.collapse(true);
       selection.addRange(newRange);
+
       let editableElement = range.startContainer;
       while (editableElement && !editableElement.isContentEditable) {
         editableElement = editableElement.parentNode;
@@ -430,6 +513,7 @@
     return false;
   }
 
+  // ===== FUNÇÕES DE APOIO (Inalteradas) =====
   function getNodePath(node) {
     const path = [];
     while (node && node.parentNode) {

@@ -453,6 +453,14 @@
                   >
                     📋 Área de Transferência
                   </button>
+                  <button
+                    type="button"
+                    class="btn-insert-action"
+                    id="btn-insert-choice"
+                    title="Insere uma escolha com múltiplas opções"
+                  >
+                    ❓ Inserir Escolha
+                  </button>
                 </div>
               </div>
               <div class="form-group">
@@ -777,6 +785,24 @@
               value="5"
             />
           </div>
+          <h3>Ações Especiais</h3>
+          <div class="form-group">
+            <label for="setting-max-choices" class="label-with-tooltip"
+              >Máximo de opções para a "Ação de Escolha"
+              <span
+                class="tooltip-icon"
+                data-tooltip="Define o número máximo de botões de opção (1 a 9) que podem ser configurados para um atalho com a ação $choice$."
+              >
+              </span>
+            </label>
+            <input
+              type="number"
+              id="setting-max-choices"
+              min="1"
+              max="9"
+              value="3"
+            />
+          </div>
           <h3>Configurações Avançadas</h3>
           <div class="form-group checkbox">
             <input type="checkbox" id="setting-undo" checked /><label
@@ -1087,6 +1113,82 @@
         </div>
       </div>
     </div>
+
+    <div
+      id="choice-config-modal"
+      class="modal-container hidden"
+      role="dialog"
+      aria-labelledby="choice-modal-title"
+      aria-modal="true"
+    >
+      <div class="modal">
+        <div class="modal-header">
+          <h2 id="choice-modal-title">Configurar Ação de Escolha</h2>
+          <button
+            id="choice-modal-close"
+            class="modal-close"
+            aria-label="Fechar modal"
+          ></button>
+        </div>
+        <div class="modal-body">
+          <form id="choice-config-form" novalidate>
+            <p>
+              Configure até 3 opções que serão apresentadas ao usuário quando a
+              abreviação for acionada.
+            </p>
+            <div id="choice-options-container"></div>
+            <button
+              type="button"
+              id="add-choice-option-btn"
+              class="btn-secondary"
+              style="margin-top: 1rem;"
+            >
+              Adicionar Opção
+            </button>
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button id="choice-modal-cancel" class="cancel-btn" type="button">
+            Cancelar
+          </button>
+          <button id="choice-modal-save" class="save-btn" type="button">
+            Salvar Escolha
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <template id="choice-option-template">
+      <div class="rule-item choice-option-item">
+        <div class="rule-header">
+          <span class="rule-type">Opção</span>
+          <div class="rule-actions">
+            <button
+              class="action-btn delete-choice-option"
+              title="Remover Opção"
+            ></button>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="">Título da Opção (curto)</label>
+          <input
+            type="text"
+            class="choice-option-title"
+            placeholder="Ex: Resposta Padrão"
+            required
+          />
+        </div>
+        <div class="form-group">
+          <label for="">Mensagem da Opção (texto completo)</label>
+          <textarea
+            class="choice-option-message"
+            rows="3"
+            placeholder="O texto que será inserido... Pode usar $cursor$ aqui."
+            required
+          ></textarea>
+        </div>
+      </div>
+    </template>
 
     <script src="../utils/constants.js"></script>
     <script src="../utils/db.js"></script>

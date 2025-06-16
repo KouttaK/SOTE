@@ -27,6 +27,18 @@ const mainModalInsertActionButtons = document.querySelectorAll(
   "#modal-container .btn-insert-action"
 );
 
+// Elementos do Modal de Escolha
+const btnInsertChoice = document.getElementById("btn-insert-choice");
+const choiceConfigModal = document.getElementById("choice-config-modal");
+const choiceModalClose = document.getElementById("choice-modal-close");
+const choiceModalCancel = document.getElementById("choice-modal-cancel");
+const choiceModalSave = document.getElementById("choice-modal-save");
+const choiceOptionsContainer = document.getElementById(
+  "choice-options-container"
+);
+const addChoiceOptionBtn = document.getElementById("add-choice-option-btn");
+const choiceOptionTemplate = document.getElementById("choice-option-template");
+
 // Import/Export
 const importBtn = document.getElementById("import-btn");
 const exportBtn = document.getElementById("export-btn");
@@ -68,44 +80,44 @@ const autocompleteMinCharsInput = document.getElementById(
 const autocompleteMaxSuggestionsInput = document.getElementById(
   "autocomplete-max-suggestions"
 );
+const settingMaxChoicesInput = document.getElementById("setting-max-choices");
 
-// Rules Modal
+// Regras
 const rulesModalContainer = document.getElementById("rules-modal");
 const rulesModalTitle = document.getElementById("rules-modal-title");
 const rulesModalCloseBtn = document.getElementById("rules-modal-close");
+const rulesModalCancelBtn = document.getElementById("rules-modal-cancel");
+const rulesModalSaveBtn = document.getElementById("rules-modal-save");
 const rulesListDisplayElement = document.getElementById("rules-list");
 const addRuleBtn = document.getElementById("add-rule-btn");
 const ruleForm = document.getElementById("rule-form");
 const ruleTypeSelect = document.getElementById("rule-type");
-const daysSection = document.getElementById("days-section");
-const dayCheckboxes = daysSection.querySelectorAll('input[type="checkbox"]');
-const timeSection = document.getElementById("time-section");
-const startHourInput = document.getElementById("start-hour");
-const endHourInput = document.getElementById("end-hour");
-const startMinuteInput = document.getElementById("start-minute");
-const endMinuteInput = document.getElementById("end-minute");
-const domainSection = document.getElementById("domain-section");
-const domainsTextarea = document.getElementById("domains");
 const ruleExpansionTextarea = document.getElementById("rule-expansion");
-const rulePriorityInput = document.getElementById("rule-priority");
-const rulesModalCancelBtn = document.getElementById("rules-modal-cancel");
-const rulesModalSaveBtn = document.getElementById("rules-modal-save");
-const specialDateSection = document.getElementById("special-date-section");
-const specialMonthInput = document.getElementById("special-month");
-const specialDayInput = document.getElementById("special-day");
 const rulesModalInsertActionButtons = document.querySelectorAll(
   "#rules-modal .btn-insert-action"
 );
+const dayCheckboxes = document.querySelectorAll('input[name="rule-day"]');
+const startHourInput = document.getElementById("start-hour");
+const startMinuteInput = document.getElementById("start-minute");
+const endHourInput = document.getElementById("end-hour");
+const endMinuteInput = document.getElementById("end-minute");
+const domainsTextarea = document.getElementById("domains");
+const specialMonthInput = document.getElementById("special-month");
+const specialDayInput = document.getElementById("special-day");
+const rulePriorityInput = document.getElementById("rule-priority");
+const daysSection = document.getElementById("days-section");
+const timeSection = document.getElementById("time-section");
+const domainSection = document.getElementById("domain-section");
+const specialDateSection = document.getElementById("special-date-section");
 const combinedRuleSection = document.getElementById("combined-rule-section");
-const combinedOperatorSelect = document.getElementById("combined-operator");
 const subConditionsList = document.getElementById("sub-conditions-list");
-const addSubConditionBtn = document.getElementById("add-sub-condition-btn");
 const subConditionTemplate = document.getElementById("sub-condition-template");
-
+const addSubConditionBtn = document.getElementById("add-sub-condition-btn");
+const combinedOperatorSelect = document.getElementById("combined-operator");
 const ruleTypeTranslations = {
   dayOfWeek: "Dia da Semana",
-  timeRange: "Intervalo de Horário",
-  domain: "Domínio do Site",
+  timeRange: "Horário",
+  domain: "Domínio",
   specialDate: "Data Especial",
   combined: "Combinada",
 };
@@ -117,6 +129,9 @@ let currentCategory = "all";
 let currentSort = { column: "abbreviation", direction: "asc" };
 let currentEditId = null;
 let isEnabled = true;
+let settings = {
+  maxChoices: 3, // Valor Padrão
+};
 let currentAbbreviationIdForRules = null;
 let currentEditingRuleId = null;
 let importPreviewData = [];
@@ -201,11 +216,24 @@ async function init() {
     })
   );
 
+  // Eventos do Modal de Escolha
+  btnInsertChoice.addEventListener("click", showChoiceConfigModal);
+  choiceModalClose.addEventListener("click", hideChoiceConfigModal);
+  choiceModalCancel.addEventListener("click", hideChoiceConfigModal);
+  addChoiceOptionBtn.addEventListener("click", addChoiceOption);
+  choiceModalSave.addEventListener("click", handleSaveChoice);
+  choiceOptionsContainer.addEventListener("click", e => {
+    if (e.target.closest(".delete-choice-option")) {
+      e.target.closest(".choice-option-item").remove();
+      updateChoiceOptionButtons();
+    }
+  });
+
   // Eventos de Import/Export
+  importBtn.addEventListener("click", showImportModal);
   exportBtn.addEventListener("click", handleExportAll);
   exportSelectedBtn.addEventListener("click", handleExportSelected);
   exportCategoryBtn.addEventListener("click", handleExportCategory);
-  importBtn.addEventListener("click", showImportModal);
   importModalClose.addEventListener("click", hideImportModal);
   importModalCancel.addEventListener("click", hideImportModal);
   importModalConfirm.addEventListener("click", handleConfirmImport);
@@ -421,7 +449,6 @@ function handleCategoryFilter(category) {
       item.classList.toggle("active", item.dataset.category === category)
     );
 
-  // Lógica para mostrar/esconder o botão de exportar categoria
   if (category && category !== "all") {
     exportCategoryBtn.style.display = "flex";
     exportCategoryBtn.querySelector(
@@ -595,6 +622,82 @@ async function handleDeleteAbbreviation(abbreviationKey) {
   });
 }
 
+function showChoiceConfigModal() {
+  choiceOptionsContainer.innerHTML = "";
+  addChoiceOption();
+  choiceConfigModal.classList.remove("hidden");
+}
+
+function hideChoiceConfigModal() {
+  choiceConfigModal.classList.add("hidden");
+}
+
+function addChoiceOption() {
+  if (choiceOptionsContainer.children.length >= settings.maxChoices) {
+    SoteNotifier.show(
+      `Você pode adicionar no máximo ${settings.maxChoices} opções, conforme suas configurações.`,
+      "warning"
+    );
+    return;
+  }
+  const templateClone = choiceOptionTemplate.content.cloneNode(true);
+  choiceOptionsContainer.appendChild(templateClone);
+  updateChoiceOptionButtons();
+}
+
+function updateChoiceOptionButtons() {
+  const options = choiceOptionsContainer.querySelectorAll(
+    ".choice-option-item"
+  );
+  addChoiceOptionBtn.style.display =
+    options.length >= settings.maxChoices ? "none" : "inline-flex";
+  options.forEach((option, index) => {
+    const titleLabel = option.querySelector(".rule-type");
+    titleLabel.textContent = `Opção ${index + 1}`;
+    const deleteBtn = option.querySelector(".delete-choice-option");
+    deleteBtn.style.display = options.length > 1 ? "inline-flex" : "none";
+  });
+}
+
+async function handleSaveChoice() {
+  const options = [];
+  const optionElements = choiceOptionsContainer.querySelectorAll(
+    ".choice-option-item"
+  );
+
+  for (const el of optionElements) {
+    const title = el.querySelector(".choice-option-title").value.trim();
+    const message = el.querySelector(".choice-option-message").value.trim();
+
+    if (!title || !message) {
+      SoteNotifier.show(
+        "Todos os títulos e mensagens das opções são obrigatórios.",
+        "error"
+      );
+      return;
+    }
+    options.push({ title, message });
+  }
+
+  if (options.length === 0) {
+    SoteNotifier.show("Você deve configurar pelo menos uma opção.", "error");
+    return;
+  }
+
+  try {
+    const newChoiceId = await window.TextExpanderDB.addChoice(options);
+    const placeholder = `$choice(id=${newChoiceId})$`;
+
+    insertTextAtCursor(expansionTextarea, placeholder);
+
+    SoteNotifier.show("Ação de escolha configurada e inserida!", "success");
+    hideChoiceConfigModal();
+  } catch (error) {
+    console.error("Erro ao salvar a configuração de escolha:", error);
+    SoteNotifier.show("Não foi possível salvar a configuração.", "error");
+  }
+}
+
 function showRulesModal(abbreviationId) {
   currentAbbreviationIdForRules = abbreviationId;
   const abbrObj = abbreviations.find(a => a.abbreviation === abbreviationId);
@@ -605,6 +708,7 @@ function showRulesModal(abbreviationId) {
   resetRuleForm();
   loadAndDisplayRules(abbreviationId);
 }
+
 function hideRulesModal() {
   rulesModalContainer.classList.add("hidden");
   currentAbbreviationIdForRules = null;
@@ -687,12 +791,14 @@ function handleShowRuleForm() {
   addRuleBtn.classList.add("hidden");
   ruleForm.querySelector("h3").textContent = "Nova Regra";
 }
+
 function resetRuleForm() {
   ruleForm.reset();
   dayCheckboxes.forEach(cb => (cb.checked = false));
   subConditionsList.innerHTML = "";
   handleRuleTypeChange();
 }
+
 function handleRuleTypeChange() {
   const type = ruleTypeSelect.value;
   daysSection.classList.toggle("hidden", type !== "dayOfWeek");
@@ -851,6 +957,7 @@ function handleEditRule(rule) {
   addRuleBtn.classList.add("hidden");
   ruleForm.classList.remove("hidden");
 }
+
 async function handleDeleteRule(ruleId) {
   SoteConfirmationModal.show({
     title: "Excluir Regra",
@@ -867,6 +974,7 @@ async function handleDeleteRule(ruleId) {
     },
   });
 }
+
 function handleAddSubCondition(data = null) {
   const clone = subConditionTemplate.content.cloneNode(true);
   const item = clone.querySelector(".sub-condition-item");
@@ -887,6 +995,7 @@ function handleAddSubCondition(data = null) {
   }
   subConditionsList.appendChild(item);
 }
+
 function renderSubConditionFields(type, container, data) {
   let content = "";
   switch (type) {
@@ -935,7 +1044,6 @@ function renderSubConditionFields(type, container, data) {
   container.innerHTML = content;
 }
 
-// --- LÓGICA DE IMPORTAÇÃO ---
 function showImportModal() {
   importModal.classList.remove("hidden");
   importStep1.classList.remove("hidden");
@@ -944,23 +1052,28 @@ function showImportModal() {
   importFileInput.value = "";
   importPreviewData = [];
 }
+
 function hideImportModal() {
   importModal.classList.add("hidden");
 }
+
 function handleFileSelect(event) {
   const file = event.target.files[0];
   if (file) {
     processImportFile(file);
   }
 }
+
 function handleDragOver(event) {
   event.preventDefault();
   importDropZone.classList.add("dragover");
 }
+
 function handleDragLeave(event) {
   event.preventDefault();
   importDropZone.classList.remove("dragover");
 }
+
 function handleDrop(event) {
   event.preventDefault();
   importDropZone.classList.remove("dragover");
@@ -971,6 +1084,7 @@ function handleDrop(event) {
     SoteNotifier.show("Por favor, solte um arquivo .json válido.", "error");
   }
 }
+
 async function processImportFile(file) {
   const reader = new FileReader();
   reader.onload = async e => {
@@ -994,6 +1108,7 @@ async function processImportFile(file) {
   };
   reader.readAsText(file);
 }
+
 async function generateImportPreview(data) {
   importPreviewData = [];
   importPreviewList.innerHTML = "";
@@ -1031,6 +1146,7 @@ async function generateImportPreview(data) {
   }
   importSummary.innerHTML = `<div class="summary-item added"><span class="count">${stats.added}</span> Novas</div><div class="summary-item updated"><span class="count">${stats.updated}</span> Atualizadas</div><div class="summary-item skipped"><span class="count">${stats.skipped}</span> Ignoradas</div>`;
 }
+
 async function handleConfirmImport() {
   const importMode = document.querySelector(
     'input[name="import-mode"]:checked'
@@ -1060,7 +1176,6 @@ async function handleConfirmImport() {
   }
 }
 
-// --- LÓGICA DE EXPORTAÇÃO ---
 function exportDataAsJson(data, fileName) {
   const blob = new Blob([JSON.stringify(data, null, 2)], {
     type: "application/json",
@@ -1074,6 +1189,7 @@ function exportDataAsJson(data, fileName) {
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
 }
+
 async function handleExportAll() {
   try {
     const data = await window.TextExpanderDB.getAllAbbreviations();
@@ -1086,6 +1202,7 @@ async function handleExportAll() {
     SoteNotifier.show("Erro ao exportar.", "error");
   }
 }
+
 async function handleExportSelected() {
   const selectedIds = Array.from(
     abbreviationsListElement.querySelectorAll(".row-checkbox:checked")
@@ -1102,6 +1219,7 @@ async function handleExportSelected() {
     `sote-export-selected-${new Date().toISOString().slice(0, 10)}.json`
   );
 }
+
 async function handleExportCategory() {
   if (!currentCategory || currentCategory === "all") {
     SoteNotifier.show("Selecione uma categoria para exportar.", "warning");
@@ -1135,14 +1253,15 @@ async function handleExportCategory() {
   }
 }
 
-// --- LÓGICA DE CONFIGURAÇÕES ---
 function showSettingsModal() {
   settingsModal.classList.remove("hidden");
   loadSettings();
 }
+
 function hideSettingsModal() {
   settingsModal.classList.add("hidden");
 }
+
 function loadSettings() {
   chrome.storage.sync.get(
     [
@@ -1155,6 +1274,7 @@ function loadSettings() {
       "autocompleteEnabled",
       "autocompleteMinChars",
       "autocompleteMaxSuggestions",
+      "maxChoices",
     ],
     r => {
       triggerSpace.checked = r.triggerSpace !== false;
@@ -1166,16 +1286,20 @@ function loadSettings() {
       autocompleteEnabledCheckbox.checked = r.autocompleteEnabled !== false;
       autocompleteMinCharsInput.value = r.autocompleteMinChars || 2;
       autocompleteMaxSuggestionsInput.value = r.autocompleteMaxSuggestions || 5;
+      const maxChoices = r.maxChoices || 3;
+      settings.maxChoices = maxChoices;
+      settingMaxChoicesInput.value = maxChoices;
     }
   );
 }
+
 function handleSaveSettings() {
   const exclusionList = exclusionListTextarea.value
     .split("\n")
     .map(item => item.trim())
     .filter(Boolean);
 
-  const settings = {
+  const newSettings = {
     triggerSpace: triggerSpace.checked,
     triggerTab: triggerTab.checked,
     triggerEnter: triggerEnter.checked,
@@ -1183,15 +1307,17 @@ function handleSaveSettings() {
     ignorePasswordFields: settingIgnorePassword.checked,
     exclusionList: exclusionList,
     autocompleteEnabled: autocompleteEnabledCheckbox.checked,
-    autocompleteMinChars: parseInt(autocompleteMinCharsInput.value) || 2,
+    autocompleteMinChars: parseInt(autocompleteMinCharsInput.value, 10) || 2,
     autocompleteMaxSuggestions:
-      parseInt(autocompleteMaxSuggestionsInput.value) || 5,
+      parseInt(autocompleteMaxSuggestionsInput.value, 10) || 5,
+    maxChoices: parseInt(settingMaxChoicesInput.value, 10) || 3,
   };
 
-  chrome.storage.sync.set(settings, () => {
+  chrome.storage.sync.set(newSettings, () => {
     hideSettingsModal();
     SoteNotifier.show("Configurações salvas.", "success");
-    // Enviar a mensagem para todas as abas, notificando a mudança nas configurações
+    settings.maxChoices = newSettings.maxChoices;
+
     chrome.tabs.query({}, tabs =>
       tabs.forEach(
         tab =>
@@ -1199,13 +1325,14 @@ function handleSaveSettings() {
           chrome.tabs
             .sendMessage(tab.id, {
               type: SOTE_CONSTANTS.MESSAGE_TYPES.SETTINGS_UPDATED,
-              settings,
+              settings: newSettings,
             })
             .catch(() => {})
       )
     );
   });
 }
+
 async function handleClearData() {
   SoteConfirmationModal.show({
     title: "Apagar Todos os Dados",

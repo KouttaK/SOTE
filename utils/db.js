@@ -3,9 +3,10 @@
   "use strict";
 
   const DB_NAME = global.SOTE_CONSTANTS.DB_NAME;
-  const DB_VERSION = global.SOTE_CONSTANTS.DB_VERSION;
+  const DB_VERSION = global.SOTE_CONSTANTS.DB_VERSION; // Deve ser 4, conforme constants.js
   const STORE_ABBREVIATIONS = global.SOTE_CONSTANTS.STORE_ABBREVIATIONS;
   const STORE_RULES = global.SOTE_CONSTANTS.STORE_RULES;
+  const STORE_CHOICES = global.SOTE_CONSTANTS.STORE_CHOICES; // Novo store
 
   const MIGRATIONS = {
     1: db => {
@@ -34,6 +35,15 @@
           keyPath: "id",
           autoIncrement: true,
         }).createIndex("abbreviationId", "abbreviationId", { unique: true });
+      }
+    },
+    // NOVA MIGRAÇÃO
+    4: db => {
+      if (!db.objectStoreNames.contains(STORE_CHOICES)) {
+        db.createObjectStore(STORE_CHOICES, {
+          keyPath: "id",
+          autoIncrement: true,
+        });
       }
     },
   };
@@ -189,9 +199,44 @@
   let categoriesCacheTimestamp = 0;
   const CATEGORIES_CACHE_TTL = 5 * 60 * 1000;
 
+  // Objeto principal que será exposto globalmente
   global.TextExpanderDB = {
     openDatabase,
     AbbreviationModel, // Expose for validation in dashboard
+
+    // --- NOVAS FUNÇÕES ADICIONADAS AQUI ---
+    async addChoice(options) {
+      const db = await openDatabase();
+      return new Promise((resolve, reject) => {
+        if (!options || options.length === 0) {
+          return reject(new Error("Pelo menos uma opção é necessária."));
+        }
+        const transaction = db.transaction(STORE_CHOICES, "readwrite");
+        const store = transaction.objectStore(STORE_CHOICES);
+        const request = store.add({ options }); // Salva como { id: ..., options: [...] }
+        request.onsuccess = event => resolve(event.target.result); // Retorna o novo ID
+        request.onerror = e => reject(e.target.error);
+        transaction.oncomplete = () =>
+          chrome.runtime
+            .sendMessage({
+              type: SOTE_CONSTANTS.MESSAGE_TYPES.ABBREVIATIONS_UPDATED,
+            })
+            .catch(() => {});
+      });
+    },
+
+    async getChoice(id) {
+      const db = await openDatabase();
+      return new Promise((resolve, reject) => {
+        const request = db
+          .transaction(STORE_CHOICES, "readonly")
+          .objectStore(STORE_CHOICES)
+          .get(id);
+        request.onsuccess = () => resolve(request.result || null);
+        request.onerror = e => reject(e.target.error);
+      });
+    },
+    // --- FIM DAS NOVAS FUNÇÕES ---
 
     async getAllAbbreviations() {
       const db = await openDatabase();
@@ -235,11 +280,6 @@
       }));
     },
 
-    /**
-     * Retrieves all abbreviations belonging to a specific category, with their rules.
-     * @param {string} category The category to filter by.
-     * @returns {Promise<Array<Object>>} A promise that resolves to an array of abbreviation objects.
-     */
     async getAbbreviationsByCategory(category) {
       const db = await openDatabase();
       return new Promise((resolve, reject) => {
@@ -252,7 +292,7 @@
         const categoryIndex = abbrStore.index("category");
 
         const abbrRequest = categoryIndex.getAll(category);
-        const rulesRequest = rulesStore.getAll(); // É mais simples pegar todas as regras e mapear depois
+        const rulesRequest = rulesStore.getAll();
 
         let abbreviations, rules;
 
@@ -443,11 +483,12 @@
       const db = await openDatabase();
       return new Promise((resolve, reject) => {
         const transaction = db.transaction(
-          [STORE_ABBREVIATIONS, STORE_RULES],
+          [STORE_ABBREVIATIONS, STORE_RULES, STORE_CHOICES], // Adicionado STORE_CHOICES
           "readwrite"
         );
         transaction.objectStore(STORE_ABBREVIATIONS).clear();
         transaction.objectStore(STORE_RULES).clear();
+        transaction.objectStore(STORE_CHOICES).clear(); // Limpa também as escolhas
         transaction.oncomplete = () => {
           chrome.runtime
             .sendMessage({
