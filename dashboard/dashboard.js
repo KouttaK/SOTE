@@ -139,6 +139,33 @@ let currentAbbreviationIdForRules = null;
 let currentEditingRuleId = null;
 let importPreviewData = [];
 
+function escapeHtml(text) {
+  if (typeof text !== "string") return "";
+  const div = document.createElement("div");
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+function createExpansionPreview(expansion) {
+  if (typeof expansion !== "string") return "";
+
+  let previewHtml = escapeHtml(expansion);
+
+  const choiceBadge =
+    '<span class="action-preview-badge choice-badge">❓ Ação de Escolha</span>';
+  previewHtml = previewHtml.replace(/\$choice\(id=\d+\)\$/g, choiceBadge);
+
+  const cursorBadge =
+    '<span class="action-preview-badge cursor-badge">📍 Cursor</span>';
+  previewHtml = previewHtml.replace(/\$cursor\$/g, cursorBadge);
+
+  const clipboardBadge =
+    '<span class="action-preview-badge clipboard-badge">📋 Área de Transferência</span>';
+  previewHtml = previewHtml.replace(/\$transferencia\$/g, clipboardBadge);
+
+  return `<div>${previewHtml}</div>`;
+}
+
 function formatExpansionForDisplay(text) {
   if (typeof text !== "string") return "";
   return text
@@ -399,18 +426,19 @@ function renderAbbreviations() {
     let lastUsedText = abbr.lastUsed
       ? new Date(abbr.lastUsed).toLocaleString("pt-BR")
       : "Nunca";
-    const formattedExpansion = formatExpansionForDisplay(abbr.expansion);
-    const expansionDisplay =
-      formattedExpansion.length > 50
-        ? `${formattedExpansion.substring(0, 47)}...`
-        : formattedExpansion;
+
+    const expansionPreviewHtml = createExpansionPreview(abbr.expansion);
+    const fullExpansionTitle = escapeHtml(abbr.expansion);
+
     row.innerHTML = `
       <td class="checkbox-cell"><input type="checkbox" class="row-checkbox" data-id="${
         abbr.abbreviation
       }"></td>
-      <td>${abbr.abbreviation}</td>
-      <td title="${formattedExpansion}">${expansionDisplay}</td>
-      <td><span class="category-badge">${abbr.category || "N/A"}</span></td>
+      <td>${escapeHtml(abbr.abbreviation)}</td>
+      <td class="expansion-cell" title="${fullExpansionTitle}">${expansionPreviewHtml}</td>
+      <td><span class="category-badge">${escapeHtml(
+        abbr.category || "N/A"
+      )}</span></td>
       <td>${abbr.usageCount || 0}</td>
       <td>${lastUsedText}</td>
       <td>${abbr.rules?.length || 0}</td>
