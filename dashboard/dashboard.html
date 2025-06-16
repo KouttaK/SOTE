@@ -510,12 +510,12 @@
           </form>
         </div>
         <div class="modal-footer">
-          <button id="modal-cancel" class="cancel-btn" type="button">
+          <button id="modal-cancel" class="btn cancel-btn" type="button">
             Cancelar
           </button>
           <button
             id="modal-save"
-            class="save-btn"
+            class="btn save-btn"
             type="submit"
             form="abbreviation-form"
           >
@@ -599,7 +599,7 @@
                 <button
                   id="import-file-btn"
                   type="button"
-                  class="btn-secondary"
+                  class="btn btn-secondary"
                 >
                   Selecione o Arquivo
                 </button>
@@ -653,12 +653,12 @@
           </div>
         </div>
         <div class="modal-footer">
-          <button id="import-modal-cancel" class="cancel-btn" type="button">
+          <button id="import-modal-cancel" class="btn cancel-btn" type="button">
             Cancelar
           </button>
           <button
             id="import-modal-confirm"
-            class="save-btn hidden"
+            class="btn save-btn hidden"
             type="button"
           >
             Confirmar Importação
@@ -819,7 +819,7 @@
             >
           </div>
           <div class="form-group">
-            <button id="clear-data-btn" class="danger-btn" type="button">
+            <button id="clear-data-btn" class="btn danger-btn" type="button">
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 width="16"
@@ -841,10 +841,14 @@
           </div>
         </div>
         <div class="modal-footer">
-          <button id="settings-modal-cancel" class="cancel-btn" type="button">
+          <button
+            id="settings-modal-cancel"
+            class="btn cancel-btn"
+            type="button"
+          >
             Cancelar
           </button>
-          <button id="settings-modal-save" class="save-btn" type="button">
+          <button id="settings-modal-save" class="btn save-btn" type="button">
             <svg
               xmlns="http://www.w3.org/2000/svg"
               width="16"
@@ -1095,29 +1099,36 @@
                 >Maior prioridade é aplicada primeiro (0 é a padrão).</small
               >
             </div>
-          </form>
-        </div>
-        <div class="modal-footer">
-          <button id="rules-modal-cancel" class="cancel-btn" type="button">
-            Cancelar
-          </button>
-          <button id="rules-modal-save" class="save-btn" type="button">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              aria-hidden="true"
+            <div
+              class="modal-footer"
+              style="padding: 1rem 0 0 0; border-top: none; background: transparent;"
             >
-              <polyline points="20,6 9,17 4,12"></polyline>
-            </svg>
-            Salvar Regra
-          </button>
+              <button
+                id="rules-modal-cancel"
+                class="btn cancel-btn"
+                type="button"
+              >
+                Cancelar
+              </button>
+              <button id="rules-modal-save" class="btn save-btn" type="button">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <polyline points="20,6 9,17 4,12"></polyline>
+                </svg>
+                Salvar Regra
+              </button>
+            </div>
+          </form>
         </div>
       </div>
     </div>
@@ -1156,10 +1167,10 @@
           </form>
         </div>
         <div class="modal-footer">
-          <button id="choice-modal-cancel" class="cancel-btn" type="button">
+          <button id="choice-modal-cancel" class="btn cancel-btn" type="button">
             Cancelar
           </button>
-          <button id="choice-modal-save" class="save-btn" type="button">
+          <button id="choice-modal-save" class="btn save-btn" type="button">
             Salvar Escolha
           </button>
         </div>

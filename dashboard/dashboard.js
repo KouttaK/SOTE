@@ -258,10 +258,8 @@ async function init() {
   // Eventos do Modal de Regras
   rulesModalCloseBtn.addEventListener("click", hideRulesModal);
   rulesModalCancelBtn.addEventListener("click", () => {
-    ruleForm.classList.contains("hidden")
-      ? hideRulesModal()
-      : (ruleForm.classList.add("hidden"),
-        addRuleBtn.classList.remove("hidden"));
+    ruleForm.classList.add("hidden");
+    addRuleBtn.classList.remove("hidden");
   });
   addRuleBtn.addEventListener("click", handleShowRuleForm);
   ruleTypeSelect.addEventListener("change", handleRuleTypeChange);

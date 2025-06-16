@@ -839,6 +839,11 @@ input:checked + .toggle-slider:before {
   font-family: inherit;
 }
 
+.btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 4px var(--primary-200);
+}
+
 .cancel-btn, .btn-secondary {
   background: white;
   color: var(--gray-700);

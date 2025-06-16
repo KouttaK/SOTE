@@ -100,7 +100,7 @@ input:checked + .toggle-slider:before { transform: translateX(24px); }
 .search-container { padding: var(--space-4) var(--space-6); background: white; border-bottom: 1px solid var(--gray-100); }
 .search-wrapper { position: relative; }
 .search-icon { position: absolute; left: var(--space-3); top: 50%; transform: translateY(-50%); color: var(--gray-400); }
-#search-input { width: 100%; padding: var(--space-3) var(--space-3) var(--space-3) var(--space-10); border: 2px solid var(--gray-200); border-radius: var(--radius-lg); font-size: var(--text-sm); outline: none; transition: var(--transition-fast); background: var(--gray-50); }
+#search-input { width: 100%; padding: var(--space-3) var(--space-3) var(--space-3) calc(var(--space-2) * 5); border: 2px solid var(--gray-200); border-radius: var(--radius-lg); font-size: var(--text-sm); outline: none; transition: var(--transition-fast); background: var(--gray-50); }
 #search-input:focus { border-color: var(--primary-500); box-shadow: 0 0 0 3px var(--primary-100); }
 #search-input::placeholder { color: var(--gray-400); }
 
