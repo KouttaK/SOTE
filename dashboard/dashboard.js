@@ -29,7 +29,9 @@ const mainModalInsertActionButtons = document.querySelectorAll(
 
 // Elementos do Modal de Escolha
 const btnInsertChoice = document.getElementById("btn-insert-choice");
+const btnEditChoice = document.getElementById("btn-edit-choice");
 const choiceConfigModal = document.getElementById("choice-config-modal");
+const choiceModalTitle = document.getElementById("choice-modal-title");
 const choiceModalClose = document.getElementById("choice-modal-close");
 const choiceModalCancel = document.getElementById("choice-modal-cancel");
 const choiceModalSave = document.getElementById("choice-modal-save");
@@ -128,6 +130,7 @@ let filteredAbbreviations = [];
 let currentCategory = "all";
 let currentSort = { column: "abbreviation", direction: "asc" };
 let currentEditId = null;
+let currentChoiceIdForEdit = null;
 let isEnabled = true;
 let settings = {
   maxChoices: 3, // Valor Padrão
@@ -210,6 +213,7 @@ async function init() {
   modalClose.addEventListener("click", hideModal);
   modalCancel.addEventListener("click", hideModal);
   modalSave.addEventListener("click", handleSaveAbbreviation);
+  expansionTextarea.addEventListener("input", updateChoiceButtonsVisibility);
   mainModalInsertActionButtons.forEach(button =>
     button.addEventListener("click", function () {
       insertTextAtCursor(expansionTextarea, this.dataset.action);
@@ -217,10 +221,11 @@ async function init() {
   );
 
   // Eventos do Modal de Escolha
-  btnInsertChoice.addEventListener("click", showChoiceConfigModal);
+  btnInsertChoice.addEventListener("click", () => showChoiceConfigModal());
+  btnEditChoice.addEventListener("click", handleEditChoice);
   choiceModalClose.addEventListener("click", hideChoiceConfigModal);
   choiceModalCancel.addEventListener("click", hideChoiceConfigModal);
-  addChoiceOptionBtn.addEventListener("click", addChoiceOption);
+  addChoiceOptionBtn.addEventListener("click", () => addChoiceOption());
   choiceModalSave.addEventListener("click", handleSaveChoice);
   choiceOptionsContainer.addEventListener("click", e => {
     if (e.target.closest(".delete-choice-option")) {
@@ -547,6 +552,7 @@ function showModal(abbr = null) {
     categorySelect.value === "Personalizada" ? "block" : "none";
   customCategoryInput.value = "";
   modalContainer.classList.remove("hidden");
+  updateChoiceButtonsVisibility();
   abbreviationInput.focus();
 }
 
@@ -622,9 +628,62 @@ async function handleDeleteAbbreviation(abbreviationKey) {
   });
 }
 
-function showChoiceConfigModal() {
+function updateChoiceButtonsVisibility() {
+  const expansionText = expansionTextarea.value;
+  const choiceRegex = /\$choice\(id=(\d+)\)\$/;
+  const match = expansionText.match(choiceRegex);
+
+  if (match && match[1]) {
+    currentChoiceIdForEdit = parseInt(match[1], 10);
+    btnInsertChoice.classList.add("hidden");
+    btnEditChoice.classList.remove("hidden");
+  } else {
+    currentChoiceIdForEdit = null;
+    btnInsertChoice.classList.remove("hidden");
+    btnEditChoice.classList.add("hidden");
+  }
+}
+
+async function handleEditChoice() {
+  if (!currentChoiceIdForEdit) {
+    SoteNotifier.show("Nenhuma escolha encontrada para editar.", "error");
+    return;
+  }
+  try {
+    const choiceData = await window.TextExpanderDB.getChoice(
+      currentChoiceIdForEdit
+    );
+    if (choiceData && choiceData.options) {
+      showChoiceConfigModal(choiceData.options, currentChoiceIdForEdit);
+    } else {
+      SoteNotifier.show(
+        `Configuração de escolha com ID ${currentChoiceIdForEdit} não encontrada.`,
+        "error"
+      );
+    }
+  } catch (error) {
+    console.error("Erro ao buscar dados da escolha:", error);
+    SoteNotifier.show("Falha ao carregar dados da escolha.", "error");
+  }
+}
+
+function showChoiceConfigModal(options = null, choiceId = null) {
   choiceOptionsContainer.innerHTML = "";
-  addChoiceOption();
+
+  if (choiceId) {
+    // Editando escolha existente
+    choiceConfigModal.dataset.editingId = choiceId;
+    choiceModalTitle.textContent = "Editar Ação de Escolha";
+    if (options && options.length > 0) {
+      options.forEach(opt => addChoiceOption(opt.title, opt.message));
+    }
+  } else {
+    // Criando nova escolha
+    delete choiceConfigModal.dataset.editingId;
+    choiceModalTitle.textContent = "Configurar Ação de Escolha";
+    addChoiceOption(); // Adiciona uma opção em branco para começar
+  }
+
   choiceConfigModal.classList.remove("hidden");
 }
 
@@ -632,7 +691,7 @@ function hideChoiceConfigModal() {
   choiceConfigModal.classList.add("hidden");
 }
 
-function addChoiceOption() {
+function addChoiceOption(title = "", message = "") {
   if (choiceOptionsContainer.children.length >= settings.maxChoices) {
     SoteNotifier.show(
       `Você pode adicionar no máximo ${settings.maxChoices} opções, conforme suas configurações.`,
@@ -641,6 +700,8 @@ function addChoiceOption() {
     return;
   }
   const templateClone = choiceOptionTemplate.content.cloneNode(true);
+  templateClone.querySelector(".choice-option-title").value = title;
+  templateClone.querySelector(".choice-option-message").value = message;
   choiceOptionsContainer.appendChild(templateClone);
   updateChoiceOptionButtons();
 }
@@ -660,6 +721,9 @@ function updateChoiceOptionButtons() {
 }
 
 async function handleSaveChoice() {
+  const isEditing = choiceConfigModal.dataset.editingId;
+  const choiceId = isEditing ? parseInt(isEditing, 10) : null;
+
   const options = [];
   const optionElements = choiceOptionsContainer.querySelectorAll(
     ".choice-option-item"
@@ -685,12 +749,18 @@ async function handleSaveChoice() {
   }
 
   try {
-    const newChoiceId = await window.TextExpanderDB.addChoice(options);
-    const placeholder = `$choice(id=${newChoiceId})$`;
-
-    insertTextAtCursor(expansionTextarea, placeholder);
-
-    SoteNotifier.show("Ação de escolha configurada e inserida!", "success");
+    if (isEditing) {
+      // Lógica de atualização
+      await window.TextExpanderDB.updateChoice(choiceId, options);
+      SoteNotifier.show("Ação de escolha atualizada!", "success");
+    } else {
+      // Lógica de criação (existente)
+      const newChoiceId = await window.TextExpanderDB.addChoice(options);
+      const placeholder = `$choice(id=${newChoiceId})$`;
+      insertTextAtCursor(expansionTextarea, placeholder);
+      SoteNotifier.show("Ação de escolha configurada e inserida!", "success");
+      updateChoiceButtonsVisibility(); // Atualiza os botões após inserir
+    }
     hideChoiceConfigModal();
   } catch (error) {
     console.error("Erro ao salvar a configuração de escolha:", error);

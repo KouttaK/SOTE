@@ -236,6 +236,27 @@
         request.onerror = e => reject(e.target.error);
       });
     },
+
+    async updateChoice(choiceId, options) {
+      const db = await openDatabase();
+      return new Promise((resolve, reject) => {
+        if (
+          !choiceId ||
+          !options ||
+          !Array.isArray(options) ||
+          options.length === 0
+        ) {
+          return reject(
+            new Error("ID da escolha e pelo menos uma opção são necessários.")
+          );
+        }
+        const transaction = db.transaction(STORE_CHOICES, "readwrite");
+        const store = transaction.objectStore(STORE_CHOICES);
+        const request = store.put({ id: choiceId, options: options });
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = e => reject(e.target.error);
+      });
+    },
     // --- FIM DAS NOVAS FUNÇÕES ---
 
     async getAllAbbreviations() {
