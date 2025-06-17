@@ -1,0 +1,63 @@
+<div
+  id="confirmation-modal"
+  class="modal-container hidden"
+  role="dialog"
+  aria-labelledby="sote-cm-title"
+  aria-modal="true"
+>
+  <div class="sote-cm-modal-overlay">
+    <div
+      class="sote-cm-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="sote-cm-title"
+    >
+      <div class="sote-cm-header">
+        <h2 id="sote-cm-title"></h2>
+        <div class="sote-cm-icon">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="24"
+            height="24"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path
+              d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"
+            ></path>
+            <line x1="12" y1="9" x2="12" y2="13"></line>
+            <line x1="12" y1="17" x2="12.01" y2="17"></line>
+          </svg>
+        </div>
+      </div>
+      <div class="sote-cm-body">
+        <p id="sote-cm-message"></p>
+        <div class="sote-cm-form-group">
+          <label for="sote-cm-input"
+            >Para confirmar, digite <strong>"Confirmo"</strong> abaixo:</label
+          >
+          <input type="text" id="sote-cm-input" autocomplete="off" />
+        </div>
+      </div>
+      <div class="sote-cm-footer">
+        <button
+          id="sote-cm-cancel-btn"
+          class="sote-cm-btn sote-cm-btn-secondary"
+        >
+          Cancelar
+        </button>
+        <button
+          id="sote-cm-confirm-btn"
+          class="sote-cm-btn sote-cm-btn-danger"
+          disabled
+        >
+          Confirmar
+        </button>
+      </div>
+    </div>
+  </div>
+</div>

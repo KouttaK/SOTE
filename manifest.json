@@ -39,6 +39,7 @@
   "web_accessible_resources": [
     {
       "resources": [
+        "workers/dataWorker.js",
         "utils/constants.js",
         "utils/db.js",
         "utils/cache.js",

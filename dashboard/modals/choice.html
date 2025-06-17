@@ -1,0 +1,101 @@
+<div
+  id="choice-config-modal"
+  class="modal-container hidden"
+  role="dialog"
+  aria-labelledby="choice-modal-title"
+  aria-modal="true"
+>
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="choice-modal-title">Configurar Ação de Escolha</h2>
+      <button
+        id="choice-modal-close"
+        class="modal-close"
+        aria-label="Fechar modal"
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <line x1="18" y1="6" x2="6" y2="18"></line>
+          <line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <form id="choice-config-form" novalidate>
+        <p>
+          Configure as opções que serão apresentadas ao usuário quando a
+          abreviação for acionada.
+        </p>
+        <div id="choice-options-container"></div>
+        <button
+          type="button"
+          id="add-choice-option-btn"
+          class="btn-secondary"
+          style="margin-top: 1rem;"
+        >
+          Adicionar Opção
+        </button>
+      </form>
+    </div>
+    <div class="modal-footer">
+      <button id="choice-modal-cancel" class="btn cancel-btn" type="button">
+        Cancelar
+      </button>
+      <button id="choice-modal-save" class="btn save-btn" type="button">
+        Salvar Escolha
+      </button>
+    </div>
+  </div>
+</div>
+
+<template id="choice-option-template">
+  <div class="rule-item choice-option-item">
+    <div class="rule-header">
+      <span class="rule-type">Opção</span>
+      <div class="rule-actions">
+        <button class="action-btn delete-choice-option" title="Remover Opção">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <path
+              d="M3 6h18m-2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3-2V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"
+            />
+          </svg>
+        </button>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Título da Opção (curto)</label>
+      <input
+        type="text"
+        class="choice-option-title"
+        placeholder="Ex: Resposta Padrão"
+        required
+      />
+    </div>
+    <div class="form-group">
+      <label>Mensagem da Opção (texto completo)</label>
+      <textarea
+        class="choice-option-message"
+        rows="3"
+        placeholder="O texto que será inserido... Pode usar $cursor$ aqui."
+        required
+      ></textarea>
+    </div>
+  </div>
+</template>

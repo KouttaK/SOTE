@@ -1,0 +1,121 @@
+<div
+  id="import-modal"
+  class="modal-container hidden"
+  role="dialog"
+  aria-labelledby="import-modal-title"
+  aria-modal="true"
+>
+  <div class="modal large">
+    <div class="modal-header">
+      <h2 id="import-modal-title">Importar Abreviações</h2>
+      <button
+        id="import-modal-close"
+        class="modal-close"
+        aria-label="Fechar modal de importação"
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <line x1="18" y1="6" x2="6" y2="18"></line>
+          <line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div id="import-step-1">
+        <p>
+          Importe de um arquivo JSON. Você pode arrastar o arquivo ou
+          selecioná-lo manualmente.
+        </p>
+        <div id="import-drop-zone" class="drop-zone">
+          <div class="drop-zone-prompt">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="48"
+              height="48"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="17 8 12 3 7 8"></polyline>
+              <line x1="12" y1="3" x2="12" y2="15"></line>
+            </svg>
+            <p>Arraste e solte o arquivo .json aqui</p>
+            <small>ou</small>
+            <button
+              id="import-file-btn"
+              type="button"
+              class="btn btn-secondary"
+            >
+              Selecione o Arquivo
+            </button>
+            <input
+              type="file"
+              id="import-file-input"
+              accept=".json"
+              class="hidden"
+            />
+          </div>
+        </div>
+        <div class="form-group" style="margin-top: 20px;">
+          <label>Modo de Importação:</label>
+          <div class="radio-group">
+            <label
+              ><input type="radio" name="import-mode" value="merge" checked />
+              Fundir com dados existentes</label
+            >
+            <label
+              ><input type="radio" name="import-mode" value="replace" />
+              Substituir todos os dados atuais</label
+            >
+          </div>
+          <small
+            ><b>Fundir:</b> Adiciona novas e atualiza existentes.
+            <b>Substituir:</b> Apaga tudo antes de importar.</small
+          >
+        </div>
+      </div>
+      <div id="import-step-2" class="hidden">
+        <h3>Pré-visualização da Importação</h3>
+        <div id="import-summary" class="import-summary"></div>
+        <div class="table-container import-preview-container">
+          <table class="abbreviations-table">
+            <thead>
+              <tr>
+                <th>Status</th>
+                <th>Abreviação</th>
+                <th>Expansão</th>
+                <th>Info</th>
+              </tr>
+            </thead>
+            <tbody id="import-preview-list"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button id="import-modal-cancel" class="btn cancel-btn" type="button">
+        Cancelar
+      </button>
+      <button
+        id="import-modal-confirm"
+        class="btn save-btn hidden"
+        type="button"
+      >
+        Confirmar Importação
+      </button>
+    </div>
+  </div>
+</div>
