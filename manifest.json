@@ -22,6 +22,7 @@
       "matches": ["<all_urls>"],
       "js": [
         "utils/constants.js",
+        "utils/cache.js",
         "utils/choiceSelectionModal.js",
         "utils/expansion.js",
         "utils/db.js",
@@ -40,6 +41,7 @@
       "resources": [
         "utils/constants.js",
         "utils/db.js",
+        "utils/cache.js",
         "utils/expansion.js",
         "utils/autocomplete.js",
         "utils/autocomplete.css",

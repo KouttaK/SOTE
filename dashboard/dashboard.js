@@ -204,8 +204,8 @@ async function performLocalRefresh() {
 async function loadAbbreviationsAndRender() {
   try {
     abbreviationsListElement.innerHTML = `<tr><td colspan="8" class="loading"><div class="loading-spinner"></div>Carregando...</td></tr>`;
-    const freshAbbreviations =
-      await window.TextExpanderDB.getAllAbbreviations();
+    // USA O CACHE PARA LER OS DADOS
+    const freshAbbreviations = await window.SOTECache.getAllAbbreviations();
     abbreviations = Array.isArray(freshAbbreviations) ? freshAbbreviations : [];
     filterAbbreviations();
   } catch (error) {
@@ -218,7 +218,8 @@ async function init() {
   if (
     typeof window.TextExpanderDB === "undefined" ||
     typeof SoteNotifier === "undefined" ||
-    typeof SoteConfirmationModal === "undefined"
+    typeof SoteConfirmationModal === "undefined" ||
+    typeof window.SOTECache === "undefined"
   ) {
     console.error("Dependências não carregadas.");
     return;
@@ -342,7 +343,8 @@ async function init() {
 
 async function loadCategories() {
   try {
-    const categories = await TextExpanderDB.getAllCategories();
+    // USA O CACHE PARA LER AS CATEGORIAS
+    const categories = await SOTECache.getAllCategories();
     const allCategoryItem = categoryList.querySelector('[data-category="all"]');
     categoryList.innerHTML = "";
     if (allCategoryItem) categoryList.appendChild(allCategoryItem);
@@ -623,6 +625,10 @@ async function handleSaveAbbreviation() {
     await (currentEditId
       ? window.TextExpanderDB.updateAbbreviation(abbrData)
       : window.TextExpanderDB.addAbbreviation(abbrData));
+
+    // INVALIDA O CACHE APÓS SALVAR
+    await window.SOTECache.invalidateAbbreviationsCache();
+
     hideModal();
     SoteNotifier.show(
       currentEditId ? "Abreviação atualizada!" : "Abreviação criada!",
@@ -651,6 +657,8 @@ async function handleDeleteAbbreviation(abbreviationKey) {
     onConfirm: async () => {
       try {
         await window.TextExpanderDB.deleteAbbreviation(abbreviationKey);
+        // INVALIDA O CACHE APÓS EXCLUIR
+        await window.SOTECache.invalidateAbbreviationsCache();
         SoteNotifier.show("Abreviação excluída.", "success");
         await performLocalRefresh();
       } catch (error) {
@@ -706,7 +714,8 @@ async function handleEditChoice() {
   }
 
   try {
-    const choiceData = await window.TextExpanderDB.getChoice(
+    // USA O CACHE PARA BUSCAR A CONFIGURAÇÃO DA ESCOLHA
+    const choiceData = await window.SOTECache.getChoiceConfig(
       currentChoiceIdForEdit
     );
     if (choiceData && choiceData.options) {
@@ -806,12 +815,12 @@ async function handleSaveChoice() {
 
   try {
     if (isEditing) {
-      // Lógica de atualização
       await window.TextExpanderDB.updateChoice(choiceId, options);
+      await window.SOTECache.invalidateChoicesCache(choiceId);
       SoteNotifier.show("Ação de escolha atualizada!", "success");
     } else {
-      // Lógica de criação (existente)
       const newChoiceId = await window.TextExpanderDB.addChoice(options);
+      await window.SOTECache.invalidateChoicesCache(newChoiceId);
       const placeholder = `$choice(id=${newChoiceId})$`;
       if (activeTextareaForChoice) {
         insertTextAtCursor(activeTextareaForChoice, placeholder);
@@ -823,13 +832,14 @@ async function handleSaveChoice() {
         return;
       }
       SoteNotifier.show("Ação de escolha configurada e inserida!", "success");
-      // Atualiza os botões do contexto correto
       if (activeTextareaForChoice === expansionTextarea) {
         updateChoiceButtonsVisibility();
       } else if (activeTextareaForChoice === ruleExpansionTextarea) {
         updateRuleChoiceButtonsVisibility();
       }
     }
+    // Invalida o cache de abreviações pois o texto de uma delas pode ter mudado
+    await window.SOTECache.invalidateAbbreviationsCache();
     hideChoiceConfigModal();
   } catch (error) {
     console.error("Erro ao salvar a configuração de escolha:", error);
@@ -1047,6 +1057,10 @@ async function handleSaveRule() {
     await (currentEditingRuleId
       ? window.TextExpanderDB.updateExpansionRule(ruleData)
       : window.TextExpanderDB.addExpansionRule(ruleData));
+
+    // INVALIDA O CACHE APÓS SALVAR REGRA
+    await window.SOTECache.invalidateAbbreviationsCache();
+
     ruleForm.classList.add("hidden");
     addRuleBtn.classList.remove("hidden");
     SoteNotifier.show("Regra salva!", "success");
@@ -1106,6 +1120,8 @@ async function handleDeleteRule(ruleId) {
     onConfirm: async () => {
       try {
         await window.TextExpanderDB.deleteExpansionRule(ruleId);
+        // INVALIDA O CACHE APÓS EXCLUIR REGRA
+        await window.SOTECache.invalidateAbbreviationsCache();
         SoteNotifier.show("Regra excluída.", "success");
         await performLocalRefresh();
       } catch (error) {
@@ -1308,6 +1324,8 @@ async function handleConfirmImport() {
       dataToImport,
       importMode === "merge"
     );
+    // INVALIDA O CACHE APÓS IMPORTAR
+    await window.SOTECache.invalidateAbbreviationsCache();
     hideImportModal();
     SoteNotifier.show(`${importedCount} abreviações processadas!`, "success");
     await performLocalRefresh();
@@ -1333,7 +1351,8 @@ function exportDataAsJson(data, fileName) {
 
 async function handleExportAll() {
   try {
-    const data = await window.TextExpanderDB.getAllAbbreviations();
+    // USA O CACHE PARA EXPORTAR
+    const data = await window.SOTECache.getAllAbbreviations();
     exportDataAsJson(
       data,
       `sote-export-all-${new Date().toISOString().slice(0, 10)}.json`
@@ -1368,7 +1387,8 @@ async function handleExportCategory() {
   }
 
   try {
-    const data = await window.TextExpanderDB.getAbbreviationsByCategory(
+    // USA O CACHE PARA EXPORTAR POR CATEGORIA
+    const data = await window.SOTECache.getAbbreviationsByCategory(
       currentCategory
     );
     if (data.length === 0) {
@@ -1482,6 +1502,8 @@ async function handleClearData() {
     onConfirm: async () => {
       try {
         await window.TextExpanderDB.clearAllAbbreviations();
+        // LIMPA TODO O CACHE
+        await window.SOTECache.clearAll();
         hideSettingsModal();
         SoteNotifier.show("Todos os dados foram apagados.", "success");
         await performLocalRefresh();

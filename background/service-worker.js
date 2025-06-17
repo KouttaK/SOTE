@@ -4,6 +4,7 @@
 try {
   importScripts("../utils/constants.js");
   importScripts("../utils/db.js");
+  importScripts("../utils/cache.js");
 } catch (error) {
   console.error("[SOTE Service Worker] Failed to import scripts:", error);
 }
@@ -120,28 +121,6 @@ function getDefaultAbbreviations() {
       usageCount: 0,
       rules: [],
     },
-    {
-      abbreviation: "omg",
-      expansion: "oh my god",
-      caseSensitive: false,
-      category: "Comum",
-      enabled: true,
-      createdAt: timestamp,
-      lastUsed: null,
-      usageCount: 0,
-      rules: [],
-    },
-    {
-      abbreviation: "brb",
-      expansion: "be right back",
-      caseSensitive: false,
-      category: "Comum",
-      enabled: true,
-      createdAt: timestamp,
-      lastUsed: null,
-      usageCount: 0,
-      rules: [],
-    },
   ];
 }
 
@@ -178,6 +157,7 @@ async function initializeDatabase() {
 
     if (existingCount === 0) {
       await seedDefaultAbbreviations();
+      await SOTECache.invalidateAbbreviationsCache(); // Invalida o cache após popular
     } else {
       log(`Database already contains ${existingCount} abbreviations`);
     }
@@ -249,12 +229,13 @@ async function handleGetAbbreviations(message, sender, sendResponse) {
   try {
     validateDatabase();
 
+    // UTILIZA O CACHE PARA OBTER OS DADOS
     const abbreviationsArray = await retryOperation(() =>
-      TextExpanderDB.getAllAbbreviations()
+      SOTECache.getAllAbbreviations()
     );
 
     log(
-      `Retrieved ${abbreviationsArray?.length || 0} abbreviations from database`
+      `Retrieved ${abbreviationsArray?.length || 0} abbreviations from cache/db`
     );
 
     sendResponse({
@@ -296,6 +277,7 @@ async function handleUpdateUsage(message, sender, sendResponse) {
     };
 
     await retryOperation(() => TextExpanderDB.updateAbbreviation(updatedData));
+    await SOTECache.invalidateAbbreviationsCache(); // INVALIDA O CACHE APÓS A ATUALIZAÇÃO
 
     log(
       `Updated usage for "${abbreviationKey}": count=${updatedData.usageCount}`
@@ -316,7 +298,7 @@ async function handleUpdateUsage(message, sender, sendResponse) {
   }
 }
 
-// NOVO: Handler para buscar a configuração de uma escolha
+// Handler para buscar a configuração de uma escolha, agora usando o cache
 async function handleGetChoiceConfig(message, sender, sendResponse) {
   try {
     validateDatabase();
@@ -326,8 +308,8 @@ async function handleGetChoiceConfig(message, sender, sendResponse) {
       return;
     }
 
-    // A função getChoice deve ter sido adicionada em utils/db.js
-    const choiceData = await TextExpanderDB.getChoice(choiceId);
+    // UTILIZA O CACHE PARA OBTER A CONFIGURAÇÃO DA ESCOLHA
+    const choiceData = await SOTECache.getChoiceConfig(choiceId);
 
     if (choiceData) {
       sendResponse({ data: choiceData });
@@ -477,7 +459,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         handleUpdateUsage(message, sender, sendResponse);
         return true; // Indica resposta assíncrona
 
-      // NOVO: Case para a nova mensagem
       case messageTypes.GET_CHOICE_CONFIG:
         handleGetChoiceConfig(message, sender, sendResponse);
         return true; // Indica resposta assíncrona
@@ -498,21 +479,20 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 });
 
 // Handle storage changes
-chrome.storage.onChanged.addListener((changes, namespace) => {
+chrome.storage.onChanged.addListener(async (changes, namespace) => {
   if (namespace !== "sync") return;
 
   log("Storage changes detected:", Object.keys(changes));
 
-  if (changes.abbreviations) {
-    broadcastAbbreviationsUpdate();
-  }
+  const settingsChanges = Object.keys(changes).reduce((obj, key) => {
+    obj[key] = changes[key];
+    return obj;
+  }, {});
 
-  const settingsChanges = Object.keys(changes)
-    .filter(key => key !== "abbreviations")
-    .reduce((obj, key) => {
-      obj[key] = changes[key];
-      return obj;
-    }, {});
+  // Como as configurações podem afetar as regras, invalidamos o cache de abreviações
+  // para garantir que as regras sejam reavaliadas com as novas configs.
+  await SOTECache.invalidateAbbreviationsCache();
+  log("Cache invalidated due to settings change.");
 
   if (Object.keys(settingsChanges).length > 0) {
     handleSettingsUpdate(settingsChanges);
@@ -542,6 +522,10 @@ chrome.runtime.onInstalled.addListener(details => {
     log("First time installation detected");
   } else if (details.reason === "update") {
     log(`Updated from version ${details.previousVersion}`);
+    // Força a invalidação do cache em caso de atualização da extensão
+    SOTECache.clearAll().then(() => {
+      log("All caches cleared due to extension update.");
+    });
   }
 });
 

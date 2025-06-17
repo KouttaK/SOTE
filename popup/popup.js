@@ -62,6 +62,7 @@ class PopupManager {
       "SoteNotifier",
       "SoteConfirmationModal",
       "SOTE_CONSTANTS",
+      "SOTECache",
     ];
     const missing = dependencies.filter(
       dep => typeof window[dep] === "undefined"
@@ -349,7 +350,8 @@ class PopupManager {
   async loadAbbreviations() {
     try {
       this.showLoadingState();
-      const freshAbbreviations = await TextExpanderDB.getAllAbbreviations();
+      // USA O CACHE PARA LER OS DADOS
+      const freshAbbreviations = await SOTECache.getAllAbbreviations();
       this.state.abbreviations = Array.isArray(freshAbbreviations)
         ? freshAbbreviations
         : [];
@@ -363,7 +365,8 @@ class PopupManager {
   // Load categories
   async loadCategories() {
     try {
-      const categories = await TextExpanderDB.getAllCategories();
+      // USA O CACHE PARA LER AS CATEGORIAS
+      const categories = await SOTECache.getAllCategories();
       this.updateCategorySelect(categories);
     } catch (error) {
       console.error("Error loading categories:", error);
@@ -651,6 +654,8 @@ class PopupManager {
         SoteNotifier.show("Abreviação criada!", "success");
       }
 
+      // INVALIDA O CACHE APÓS SALVAR
+      await SOTECache.invalidateAbbreviationsCache();
       await this.performLocalRefresh();
       this.hideModal();
     } catch (error) {
@@ -715,6 +720,8 @@ class PopupManager {
         try {
           await TextExpanderDB.deleteAbbreviation(abbreviationKey);
           SoteNotifier.show("Abreviação excluída.", "success");
+          // INVALIDA O CACHE APÓS EXCLUIR
+          await SOTECache.invalidateAbbreviationsCache();
           await this.performLocalRefresh();
         } catch (error) {
           console.error("Error deleting abbreviation:", error);
