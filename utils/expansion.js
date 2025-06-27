@@ -182,11 +182,22 @@
         conditionMet = validateDomain(rule.domains, currentDomain, currentUrl);
         break;
       case "specialDate":
-        conditionMet =
-          rule.month !== undefined &&
-          rule.day !== undefined &&
-          currentMonth === parseInt(rule.month, 10) &&
-          currentDate === parseInt(rule.day, 10);
+        if (rule.specialDates && Array.isArray(rule.specialDates)) {
+          conditionMet = rule.specialDates.some(
+            date =>
+              date.month !== undefined &&
+              date.day !== undefined &&
+              currentMonth === parseInt(date.month, 10) &&
+              currentDate === parseInt(date.day, 10)
+          );
+        } else {
+          // Fallback for old rules for robustness
+          conditionMet =
+            rule.month !== undefined &&
+            rule.day !== undefined &&
+            currentMonth === parseInt(rule.month, 10) &&
+            currentDate === parseInt(rule.day, 10);
+        }
         break;
       case "combined":
         if (

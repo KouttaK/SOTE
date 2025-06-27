@@ -1006,24 +1006,34 @@
               ></textarea>
             </div>
             <div id="special-date-section" class="form-group hidden">
-              <label>Data Especial (Anual)</label>
-              <div class="date-range">
-                <input
-                  type="number"
-                  id="special-month"
-                  min="1"
-                  max="12"
-                  placeholder="Mês (1-12)"
-                /><span>/</span
-                ><input
-                  type="number"
-                  id="special-day"
-                  min="1"
-                  max="31"
-                  placeholder="Dia (1-31)"
-                />
-              </div>
-              <small>Ex: Para 25 de Dezembro, use Mês: 12, Dia: 25.</small>
+              <label>Datas Especiais (Anual)</label>
+              <div id="special-dates-list"></div>
+              <button
+                type="button"
+                id="add-special-date-btn"
+                class="btn btn-secondary"
+                style="margin-top: 8px;"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <line x1="12" y1="5" x2="12" y2="19"></line>
+                  <line x1="5" y1="12" x2="19" y2="12"></line>
+                </svg>
+                Adicionar Data
+              </button>
+              <small
+                >A regra será ativada em qualquer uma das datas listadas.</small
+              >
             </div>
             <div id="combined-rule-section" class="form-group hidden">
               <label for="combined-operator">Operador Lógico Principal</label
@@ -1197,6 +1207,47 @@
         </div>
       </div>
     </div>
+
+    <template id="special-date-item-template">
+      <div class="date-range special-date-item" style="margin-bottom: 8px;">
+        <input
+          type="number"
+          class="special-date-month"
+          min="1"
+          max="12"
+          placeholder="Mês"
+        />
+        <span>/</span>
+        <input
+          type="number"
+          class="special-date-day"
+          min="1"
+          max="31"
+          placeholder="Dia"
+        />
+        <button
+          type="button"
+          class="action-btn delete-special-date"
+          title="Remover Data"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+    </template>
 
     <template id="choice-option-template">
       <div class="rule-item choice-option-item">

@@ -106,13 +106,16 @@ const startMinuteInput = document.getElementById("start-minute");
 const endHourInput = document.getElementById("end-hour");
 const endMinuteInput = document.getElementById("end-minute");
 const domainsTextarea = document.getElementById("domains");
-const specialMonthInput = document.getElementById("special-month");
-const specialDayInput = document.getElementById("special-day");
+const specialDateSection = document.getElementById("special-date-section");
+const specialDatesList = document.getElementById("special-dates-list");
+const addSpecialDateBtn = document.getElementById("add-special-date-btn");
+const specialDateItemTemplate = document.getElementById(
+  "special-date-item-template"
+);
 const rulePriorityInput = document.getElementById("rule-priority");
 const daysSection = document.getElementById("days-section");
 const timeSection = document.getElementById("time-section");
 const domainSection = document.getElementById("domain-section");
-const specialDateSection = document.getElementById("special-date-section");
 const combinedRuleSection = document.getElementById("combined-rule-section");
 const subConditionsList = document.getElementById("sub-conditions-list");
 const subConditionTemplate = document.getElementById("sub-condition-template");
@@ -302,6 +305,12 @@ async function init() {
     showChoiceConfigModal();
   });
   ruleBtnEditChoice.addEventListener("click", handleEditChoice);
+  addSpecialDateBtn.addEventListener("click", () => addSpecialDateRow());
+  specialDatesList.addEventListener("click", e => {
+    if (e.target.closest(".delete-special-date")) {
+      e.target.closest(".special-date-item").remove();
+    }
+  });
 
   addSubConditionBtn?.addEventListener("click", () =>
     handleAddSubCondition(null)
@@ -889,9 +898,24 @@ function loadAndDisplayRules(abbreviationId) {
         details = `Domínios: ${rule.domains?.join(", ") || "N/A"}`;
         break;
       case "specialDate":
-        details = `Data: ${String(rule.day).padStart(2, "0")}/${String(
-          rule.month
-        ).padStart(2, "0")}`;
+        let datesStr = "N/A";
+        if (rule.specialDates && rule.specialDates.length > 0) {
+          datesStr = rule.specialDates
+            .map(
+              d =>
+                `${String(d.day).padStart(2, "0")}/${String(d.month).padStart(
+                  2,
+                  "0"
+                )}`
+            )
+            .join(", ");
+        } else if (rule.month && rule.day) {
+          // Fallback for old rules
+          datesStr = `${String(rule.day).padStart(2, "0")}/${String(
+            rule.month
+          ).padStart(2, "0")}`;
+        }
+        details = `Datas: ${datesStr}`;
         break;
       case "combined":
         details = `Combinada (${rule.logicalOperator}): ${
@@ -932,10 +956,25 @@ function handleShowRuleForm() {
   updateRuleChoiceButtonsVisibility();
 }
 
+function addSpecialDateRow(date = { month: "", day: "" }) {
+  const templateClone = specialDateItemTemplate.content.cloneNode(true);
+  const monthInput = templateClone.querySelector(".special-date-month");
+  const dayInput = templateClone.querySelector(".special-date-day");
+
+  monthInput.value = date.month;
+  dayInput.value = date.day;
+
+  specialDatesList.appendChild(templateClone);
+}
+
 function resetRuleForm() {
   ruleForm.reset();
   dayCheckboxes.forEach(cb => (cb.checked = false));
   subConditionsList.innerHTML = "";
+
+  specialDatesList.innerHTML = "";
+  addSpecialDateRow();
+
   handleRuleTypeChange();
 }
 
@@ -989,10 +1028,48 @@ async function handleSaveRule() {
         .filter(Boolean);
       break;
     case "specialDate":
-      Object.assign(ruleData, {
-        month: parseInt(specialMonthInput.value),
-        day: parseInt(specialDayInput.value),
-      });
+      const dateItems = specialDatesList.querySelectorAll(".special-date-item");
+      const dates = [];
+      const uniqueDates = new Set();
+
+      for (const item of dateItems) {
+        const monthInput = item.querySelector(".special-date-month");
+        const dayInput = item.querySelector(".special-date-day");
+        const month = parseInt(monthInput.value, 10);
+        const day = parseInt(dayInput.value, 10);
+
+        if (!month || !day) continue; // Ignore empty rows
+
+        if (month < 1 || month > 12 || day < 1 || day > 31) {
+          SoteNotifier.show(
+            `Data inválida: Mês ${month}, Dia ${day}.`,
+            "error"
+          );
+          return;
+        }
+
+        const dateString = `${month}-${day}`;
+        if (uniqueDates.has(dateString)) {
+          SoteNotifier.show(
+            `Data duplicada encontrada: ${day}/${month}.`,
+            "error"
+          );
+          return;
+        }
+
+        uniqueDates.add(dateString);
+        dates.push({ month, day });
+      }
+
+      if (dates.length === 0) {
+        SoteNotifier.show(
+          "Você deve adicionar pelo menos uma data para a regra de Data Especial.",
+          "error"
+        );
+        return;
+      }
+
+      ruleData.specialDates = dates;
       break;
     case "combined":
       ruleData.logicalOperator = combinedOperatorSelect.value;
@@ -1086,8 +1163,15 @@ function handleEditRule(rule) {
       domainsTextarea.value = rule.domains?.join("\n") || "";
       break;
     case "specialDate":
-      specialMonthInput.value = rule.month;
-      specialDayInput.value = rule.day;
+      specialDatesList.innerHTML = ""; // Clear previous
+      if (rule.specialDates && rule.specialDates.length > 0) {
+        rule.specialDates.forEach(date => addSpecialDateRow(date));
+      } else if (rule.month && rule.day) {
+        // Handle old format
+        addSpecialDateRow({ month: rule.month, day: rule.day });
+      } else {
+        addSpecialDateRow(); // Add one empty row if none exist
+      }
       break;
     case "combined":
       combinedOperatorSelect.value = rule.logicalOperator || "AND";

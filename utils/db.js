@@ -185,13 +185,42 @@
       endHour: { type: "number" },
       endMinute: { type: "number" },
       domains: { type: "array" },
-      month: { type: "number" },
-      day: { type: "number" },
+      specialDates: { type: "array", default: [] },
       logicalOperator: { type: "string", enum: ["AND", "OR"] },
       subConditions: { type: "array" },
     };
     static validate(data, strict = false) {
-      return Validator.validate(data, this.schema, strict);
+      const validated = Validator.validate(data, this.schema, strict);
+
+      if (validated.specialDates && Array.isArray(validated.specialDates)) {
+        for (const date of validated.specialDates) {
+          if (typeof date !== "object" || date === null) {
+            throw new Error("Items in 'specialDates' must be objects.");
+          }
+          if (date.month === undefined || date.day === undefined) {
+            throw new Error(
+              "Each date in 'specialDates' must have 'month' and 'day' properties."
+            );
+          }
+          if (typeof date.month !== "number" || typeof date.day !== "number") {
+            throw new Error(
+              "Properties 'month' and 'day' in 'specialDates' must be numbers."
+            );
+          }
+          if (date.month < 1 || date.month > 12) {
+            throw new Error(
+              `Month must be between 1 and 12, but received ${date.month}.`
+            );
+          }
+          if (date.day < 1 || date.day > 31) {
+            throw new Error(
+              `Day must be between 1 and 31, but received ${date.day}.`
+            );
+          }
+        }
+      }
+
+      return validated;
     }
   }
 
