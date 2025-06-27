@@ -17,6 +17,26 @@ class PopupManager {
     this.init();
   }
 
+  /**
+   * Envia uma mensagem para o service worker.
+   * @param {string} type - O tipo da mensagem.
+   * @param {object} [payload] - Os dados a serem enviados.
+   * @returns {Promise<any>} - A resposta do service worker.
+   */
+  sendMessageToBackground(type, payload) {
+    return new Promise((resolve, reject) => {
+      chrome.runtime.sendMessage({ type, payload }, response => {
+        if (chrome.runtime.lastError) {
+          return reject(new Error(chrome.runtime.lastError.message));
+        }
+        if (response && response.error) {
+          return reject(new Error(response.details || response.error));
+        }
+        resolve(response);
+      });
+    });
+  }
+
   // Initialize DOM elements with error handling
   initializeElements() {
     const requiredElements = {
@@ -58,7 +78,6 @@ class PopupManager {
   // Validate dependencies
   validateDependencies() {
     const dependencies = [
-      "TextExpanderDB",
       "SoteNotifier",
       "SoteConfirmationModal",
       "SOTE_CONSTANTS",
@@ -132,30 +151,42 @@ class PopupManager {
       this.validateDependencies();
       this.initializeElements();
 
-      await Promise.all([
-        this.loadAbbreviations(),
-        this.loadCategories(),
-        this.loadSettings(),
-      ]);
-
       this.setupEventListeners();
       this.setupMessageListener();
+
+      await this.loadInitialState();
     } catch (error) {
       console.error("Failed to initialize popup:", error);
       this.showErrorState(error.message);
     }
   }
 
-  // Load settings from storage
-  async loadSettings() {
+  // Load initial state from background
+  async loadInitialState() {
+    this.showLoadingState();
     try {
-      const result = await chrome.storage.sync.get("enabled");
-      this.state.isEnabled = result.enabled !== false;
-      this.elements.enabledToggle.checked = this.state.isEnabled;
-      this.updateStatusText();
+      const initialState = await this.sendMessageToBackground(
+        SOTE_CONSTANTS.MESSAGE_TYPES.GET_STATE
+      );
+      this.updateLocalState(initialState);
     } catch (error) {
-      console.error("Failed to load settings:", error);
+      console.error("Error loading initial state:", error);
+      this.showErrorState("Não foi possível carregar os dados.");
     }
+  }
+
+  // Update local state and UI from a state object
+  updateLocalState(newState) {
+    this.state.abbreviations = Array.isArray(newState.abbreviations)
+      ? newState.abbreviations
+      : [];
+    this.state.isEnabled = newState.isEnabled !== false;
+
+    this.elements.enabledToggle.checked = this.state.isEnabled;
+    this.updateStatusText();
+
+    this.updateCategorySelect();
+    this.filterAbbreviations();
   }
 
   // Setup all event listeners with proper cleanup
@@ -253,13 +284,9 @@ class PopupManager {
   // Setup chrome message listener
   setupMessageListener() {
     chrome.runtime.onMessage.addListener(message => {
-      const validTypes = [
-        SOTE_CONSTANTS.MESSAGE_TYPES.ABBREVIATIONS_UPDATED,
-        SOTE_CONSTANTS.MESSAGE_TYPES.INITIAL_SEED_COMPLETE,
-      ];
-
-      if (validTypes.includes(message.type)) {
-        this.performLocalRefresh();
+      if (message.type === SOTE_CONSTANTS.MESSAGE_TYPES.STATE_UPDATED) {
+        console.log("Popup recebeu STATE_UPDATED.");
+        this.updateLocalState(message.payload);
       }
       return true;
     });
@@ -345,33 +372,11 @@ class PopupManager {
       : "Desabilitado";
   }
 
-  // Load abbreviations with error handling
-  async loadAbbreviations() {
-    try {
-      this.showLoadingState();
-      const freshAbbreviations = await TextExpanderDB.getAllAbbreviations();
-      this.state.abbreviations = Array.isArray(freshAbbreviations)
-        ? freshAbbreviations
-        : [];
-      this.filterAbbreviations();
-    } catch (error) {
-      console.error("Error loading abbreviations:", error);
-      this.showErrorState("Não foi possível carregar as abreviações.");
-    }
-  }
-
-  // Load categories
-  async loadCategories() {
-    try {
-      const categories = await TextExpanderDB.getAllCategories();
-      this.updateCategorySelect(categories);
-    } catch (error) {
-      console.error("Error loading categories:", error);
-    }
-  }
-
   // Update category select with new categories
-  updateCategorySelect(categories) {
+  updateCategorySelect() {
+    const categories = Array.from(
+      new Set(this.state.abbreviations.map(a => a.category).filter(Boolean))
+    ).sort();
     const standardValues = ["Comum", "Pessoal", "Trabalho", "Personalizada"];
     const select = this.elements.newCategorySelect;
 
@@ -499,6 +504,7 @@ class PopupManager {
   handleToggleEnabled() {
     this.state.isEnabled = this.elements.enabledToggle.checked;
     this.updateStatusText();
+    // A mudança de `enabled` é gerenciada pelo storage.sync e seu listener no background
     chrome.storage.sync.set({ enabled: this.state.isEnabled });
   }
 
@@ -643,16 +649,20 @@ class PopupManager {
     };
 
     try {
-      if (this.state.currentEditId) {
-        await TextExpanderDB.updateAbbreviation(abbrData);
-        SoteNotifier.show("Abreviação atualizada!", "success");
-      } else {
-        await TextExpanderDB.addAbbreviation(abbrData);
-        SoteNotifier.show("Abreviação criada!", "success");
-      }
+      const messageType = this.state.currentEditId
+        ? SOTE_CONSTANTS.MESSAGE_TYPES.UPDATE_ABBREVIATION
+        : SOTE_CONSTANTS.MESSAGE_TYPES.ADD_ABBREVIATION;
 
-      await this.performLocalRefresh();
+      await this.sendMessageToBackground(messageType, abbrData);
+
+      SoteNotifier.show(
+        this.state.currentEditId
+          ? "Abreviação atualizada!"
+          : "Abreviação criada!",
+        "success"
+      );
       this.hideModal();
+      // A UI será atualizada automaticamente via STATE_UPDATED
     } catch (error) {
       console.error("Error saving abbreviation:", error);
       const message = error.message.includes("Key already exists")
@@ -713,20 +723,18 @@ class PopupManager {
       )}</strong>"? Esta ação não pode ser desfeita.`,
       onConfirm: async () => {
         try {
-          await TextExpanderDB.deleteAbbreviation(abbreviationKey);
+          await this.sendMessageToBackground(
+            SOTE_CONSTANTS.MESSAGE_TYPES.DELETE_ABBREVIATION,
+            { abbreviationKey }
+          );
           SoteNotifier.show("Abreviação excluída.", "success");
-          await this.performLocalRefresh();
+          // UI será atualizada automaticamente
         } catch (error) {
           console.error("Error deleting abbreviation:", error);
           SoteNotifier.show("Erro ao excluir abreviação.", "error");
         }
       },
     });
-  }
-
-  // Perform local refresh
-  async performLocalRefresh() {
-    await Promise.all([this.loadAbbreviations(), this.loadCategories()]);
   }
 
   // Cleanup method

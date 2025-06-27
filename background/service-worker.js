@@ -2,11 +2,10 @@
 
 // ===== IMPORTS =====
 try {
-  // Scripts de Utilitários e DB
   importScripts("../utils/constants.js");
   importScripts("../utils/db.js");
+  importScripts("../utils/StateManager.js"); // <<< NOVO
 
-  // Módulos refatorados
   importScripts("modules/validations.js");
   importScripts("modules/data-handler.js");
   importScripts("modules/db-operations.js");
@@ -15,7 +14,8 @@ try {
   console.error("[SOTE Service Worker] Falha ao importar scripts:", error);
 }
 
-// ===== CONSTANTS =====
+// ===== STATE MANAGEMENT =====
+let stateManager;
 const DEBUG_PREFIX = "[SOTE Service Worker]";
 
 // ===== UTILITY FUNCTIONS =====
@@ -27,180 +27,207 @@ function logError(message, error) {
   console.error(`${DEBUG_PREFIX} ${message}`, error);
 }
 
-// ===== DATABASE INITIALIZATION =====
-async function initializeDatabase() {
+// ===== CORE LOGIC =====
+
+/**
+ * Função central para atualizar o estado. Busca os dados mais recentes do DB
+ * e os atualiza no StateManager.
+ */
+async function refreshStateFromDB() {
+  if (!stateManager) {
+    logError("StateManager não inicializado. Abortando refresh.");
+    return;
+  }
+  try {
+    const abbreviations = await SoteDBOperations.getAbbreviations();
+    await stateManager.setState({ abbreviations }, "REFRESH_FROM_DB");
+  } catch (error) {
+    logError("Falha ao recarregar o estado do DB:", error);
+  }
+}
+
+/**
+ * Inicializa o State Manager e o banco de dados.
+ */
+async function initializeApp() {
   try {
     SoteValidators.validateAll();
-    log("Inicializando banco de dados...");
+    log("Inicializando aplicação...");
 
-    // As migrações são tratadas dentro de TextExpanderDB.openDatabase
     await TextExpanderDB.openDatabase();
-
-    // Popula com dados padrão se necessário
     await SoteDataHandler.seedInitialDataIfNeeded();
 
-    await SoteBroadcaster.notifyInitializationComplete();
-    log("Inicialização do banco de dados concluída com sucesso.");
+    // Carrega o estado inicial do DB
+    const [abbreviations, settings] = await Promise.all([
+      SoteDBOperations.getAbbreviations(),
+      chrome.storage.sync.get(),
+    ]);
+
+    const initialState = {
+      abbreviations: abbreviations || [],
+      settings: settings || {},
+      isEnabled: settings.enabled !== false,
+    };
+
+    // Cria e configura o StateManager - CORRIGIDO
+    stateManager = new self.StateManager(initialState, { enableLogging: true });
+
+    // Inscreve o broadcaster para propagar as mudanças de estado
+    stateManager.subscribe((newState, oldState) => {
+      SoteBroadcaster.broadcastStateUpdate(newState);
+    });
+
+    log("Aplicação e StateManager inicializados com sucesso.");
   } catch (error) {
-    logError("Falha ao inicializar o banco de dados:", error);
+    logError("Falha grave na inicialização:", error);
     throw error;
   }
 }
 
-// ===== MESSAGE HANDLERS =====
-async function handleGetAbbreviations(sendResponse) {
-  try {
-    const abbreviations = await SoteDBOperations.getAbbreviations();
-    sendResponse({
-      abbreviations: abbreviations,
-      timestamp: new Date().toISOString(),
-    });
-  } catch (error) {
-    sendResponse({
-      error: "Falha ao recuperar abreviações.",
-      details: error.message,
-    });
+// ===== MESSAGE HANDLER =====
+async function handleMessage(message, sender, sendResponse) {
+  // Garante que o app está inicializado antes de processar mensagens
+  if (!stateManager) {
+    logWarn("StateManager ainda não pronto, aguardando inicialização...");
+    await initializeApp();
   }
-}
 
-async function handleUpdateUsage(message, sendResponse) {
-  try {
-    const result = await SoteDBOperations.updateUsage(message.abbreviation);
-    sendResponse(result);
-    // Dispara o broadcast após a resposta ser enviada
-    SoteBroadcaster.broadcastAbbreviationsUpdate();
-  } catch (error) {
-    sendResponse({
-      error: "Falha ao atualizar estatísticas de uso.",
-      details: error.message,
-    });
-  }
-}
+  const { type, payload } = message;
+  // CORRIGIDO
+  const { MESSAGE_TYPES } = self.SOTE_CONSTANTS;
 
-async function handleGetChoiceConfig(message, sendResponse) {
   try {
-    const choiceData = await SoteDBOperations.getChoiceConfig(message.id);
-    sendResponse({ data: choiceData });
+    switch (type) {
+      // --- Leitura de Estado ---
+      case MESSAGE_TYPES.GET_STATE:
+        sendResponse(stateManager.getState());
+        break;
+
+      // --- Operações de Abreviação ---
+      case MESSAGE_TYPES.ADD_ABBREVIATION:
+        await TextExpanderDB.addAbbreviation(payload);
+        await refreshStateFromDB();
+        sendResponse({ success: true });
+        break;
+
+      case MESSAGE_TYPES.UPDATE_ABBREVIATION:
+        await TextExpanderDB.updateAbbreviation(payload);
+        await refreshStateFromDB();
+        sendResponse({ success: true });
+        break;
+
+      case MESSAGE_TYPES.DELETE_ABBREVIATION:
+        await TextExpanderDB.deleteAbbreviation(payload.abbreviationKey);
+        await refreshStateFromDB();
+        sendResponse({ success: true });
+        break;
+
+      case MESSAGE_TYPES.IMPORT_ABBREVIATIONS:
+        await TextExpanderDB.importAbbreviations(payload.data, payload.isMerge);
+        await refreshStateFromDB();
+        sendResponse({ success: true });
+        break;
+
+      case MESSAGE_TYPES.CLEAR_ALL_DATA:
+        await TextExpanderDB.clearAllAbbreviations();
+        await refreshStateFromDB();
+        sendResponse({ success: true });
+        break;
+
+      // --- Operações de Regra ---
+      case MESSAGE_TYPES.ADD_RULE:
+        await TextExpanderDB.addExpansionRule(payload);
+        await refreshStateFromDB();
+        sendResponse({ success: true });
+        break;
+
+      case MESSAGE_TYPES.UPDATE_RULE:
+        await TextExpanderDB.updateExpansionRule(payload);
+        await refreshStateFromDB();
+        sendResponse({ success: true });
+        break;
+
+      case MESSAGE_TYPES.DELETE_RULE:
+        await TextExpanderDB.deleteExpansionRule(payload.ruleId);
+        await refreshStateFromDB();
+        sendResponse({ success: true });
+        break;
+
+      // --- Operações de Escolha ---
+      case MESSAGE_TYPES.ADD_CHOICE:
+        const newChoiceId = await TextExpanderDB.addChoice(payload.options);
+        await refreshStateFromDB(); // Embora não afete abreviações, mantém consistência se necessário no futuro
+        sendResponse({ success: true, newChoiceId });
+        break;
+
+      case MESSAGE_TYPES.UPDATE_CHOICE:
+        await TextExpanderDB.updateChoice(payload.choiceId, payload.options);
+        await refreshStateFromDB();
+        sendResponse({ success: true });
+        break;
+
+      case MESSAGE_TYPES.GET_CHOICE_CONFIG:
+        const choiceData = await SoteDBOperations.getChoiceConfig(message.id);
+        sendResponse({ data: choiceData });
+        break;
+
+      // --- Outras Ações ---
+      case MESSAGE_TYPES.UPDATE_USAGE:
+        await SoteDBOperations.updateUsage(message.abbreviation);
+        await refreshStateFromDB();
+        sendResponse({ success: true });
+        break;
+
+      default:
+        log(`Tipo de mensagem desconhecido recebido: ${type}`);
+        sendResponse({ error: "Tipo de mensagem desconhecido." });
+        return false; // Indica que a resposta não será assíncrona
+    }
   } catch (error) {
+    logError(`Erro ao processar a mensagem ${type}:`, error);
     sendResponse({
-      error: "Falha ao buscar configuração de escolha.",
+      error: "Falha ao processar a requisição.",
       details: error.message,
     });
   }
+
+  return true; // Indica que a resposta é (ou pode ser) assíncrona
 }
 
 // ===== EVENT LISTENERS =====
-
-// Instalação do Service Worker
 self.addEventListener("install", event => {
   log("Service Worker instalando...");
   event.waitUntil(
-    initializeDatabase().catch(error => {
-      logError("Falha na instalação:", error);
-      // Não relançar o erro para não impedir a instalação
-    })
+    initializeApp().catch(err =>
+      logError("Falha na inicialização durante a instalação.", err)
+    )
   );
 });
 
-// Ativação do Service Worker
 self.addEventListener("activate", event => {
   log("Service Worker ativando...");
-  event.waitUntil(
-    self.clients.claim().then(() => {
-      log("Service Worker ativado e controlando todos os clientes.");
-    })
-  );
+  event.waitUntil(clients.claim());
 });
 
-// Listener principal de mensagens
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (!message?.type) {
-    sendResponse({ error: "Tipo de mensagem não especificado." });
-    return false;
-  }
+chrome.runtime.onMessage.addListener(handleMessage);
 
-  try {
-    SoteValidators.validateConstants();
-    const { MESSAGE_TYPES } = self.SOTE_CONSTANTS;
-
-    switch (message.type) {
-      case MESSAGE_TYPES.GET_ABBREVIATIONS:
-        handleGetAbbreviations(sendResponse);
-        return true; // Resposta assíncrona
-
-      case MESSAGE_TYPES.UPDATE_USAGE:
-        handleUpdateUsage(message, sendResponse);
-        return true; // Resposta assíncrona
-
-      case MESSAGE_TYPES.GET_CHOICE_CONFIG:
-        handleGetChoiceConfig(message, sendResponse);
-        return true; // Resposta assíncrona
-
-      default:
-        log(`Tipo de mensagem desconhecido: ${message.type}`);
-        sendResponse({ error: "Tipo de mensagem desconhecido." });
-        return false;
-    }
-  } catch (error) {
-    logError("Erro ao manipular mensagem:", error);
-    sendResponse({
-      error: "Erro interno ao manipular mensagem.",
-      details: error.message,
-    });
-    return false;
-  }
-});
-
-// Listener para mudanças no storage
 chrome.storage.onChanged.addListener((changes, namespace) => {
-  if (namespace !== "sync") return;
-  log("Mudanças no storage detectadas:", Object.keys(changes));
+  if (namespace !== "sync" || !stateManager) return;
 
-  if (changes.abbreviations) {
-    // Embora não usado diretamente, mantém a lógica
-    SoteBroadcaster.broadcastAbbreviationsUpdate();
-  }
+  const oldSettings = stateManager.getState("settings");
+  const newSettings = { ...oldSettings };
+  let settingsChanged = false;
 
-  const settingsChanges = Object.keys(changes)
-    .filter(key => key !== "abbreviations")
-    .reduce((obj, key) => ({ ...obj, [key]: changes[key] }), {});
-
-  if (Object.keys(settingsChanges).length > 0) {
-    SoteBroadcaster.broadcastSettingsUpdate(settingsChanges);
-  }
-});
-
-// Inicialização da extensão
-chrome.runtime.onStartup.addListener(() => {
-  log("Extensão iniciada.");
-  // Uma pequena espera para garantir que outras partes estejam prontas
-  setTimeout(() => SoteValidators.validateAll().catch(() => {}), 1000);
-});
-
-// Instalação/Atualização da extensão
-chrome.runtime.onInstalled.addListener(details => {
-  log(`Extensão instalada/atualizada: ${details.reason}`);
-  if (details.reason === "install") {
-    log("Detectada primeira instalação.");
-  } else if (details.reason === "update") {
-    log(`Atualizado da versão ${details.previousVersion}`);
-  }
-});
-
-// Handlers de Erro Globais
-self.addEventListener("error", event => {
-  logError("Erro não tratado no service worker:", {
-    message: event.message,
-    filename: event.filename,
-    lineno: event.lineno,
-    colno: event.colno,
-    error: event.error,
+  Object.keys(changes).forEach(key => {
+    if (key in oldSettings) {
+      newSettings[key] = changes[key].newValue;
+      settingsChanged = true;
+    }
   });
-});
 
-self.addEventListener("unhandledrejection", event => {
-  logError("Promise rejection não tratada no service worker:", event.reason);
-  event.preventDefault();
+  if (settingsChanged) {
+    log("Mudanças no storage.sync detectadas, atualizando state manager...");
+    stateManager.setState({ settings: newSettings }, "SETTINGS_SYNC_UPDATE");
+    // O broadcast já é feito pelo subscribe do stateManager
+  }
 });
-
-log("Script do Service Worker carregado com sucesso.");

@@ -3,7 +3,6 @@
   "use strict";
 
   const DEBUG_PREFIX = "[SOTE Broadcaster]";
-  const BROADCAST_DEBOUNCE_DELAY = 100;
 
   function log(message, ...args) {
     console.log(`${DEBUG_PREFIX} ${message}`, ...args);
@@ -17,60 +16,54 @@
     console.error(`${DEBUG_PREFIX} ${message}`, error);
   }
 
-  function debounce(func, delay) {
-    let timeoutId;
-    return function (...args) {
-      clearTimeout(timeoutId);
-      timeoutId = setTimeout(() => func.apply(this, args), delay);
-    };
-  }
-
   const SoteBroadcaster = {
     /**
-     * Notifica todas as abas sobre a atualização das abreviações.
+     * Notifica todas as abas e UIs sobre uma mudança no estado global.
+     * @param {Object} newState - O novo estado completo da aplicação.
      */
-    broadcastAbbreviationsUpdate: debounce(async () => {
+    async broadcastStateUpdate(newState) {
       try {
+        const message = {
+          type: global.SOTE_CONSTANTS.MESSAGE_TYPES.STATE_UPDATED,
+          payload: newState,
+          timestamp: new Date().toISOString(),
+        };
+
+        // Envia para todas as abas
         const tabs = await chrome.tabs.query({});
-        const results = await Promise.allSettled(
-          tabs
-            .filter(
-              tab => tab.id && tab.url && !tab.url.startsWith("chrome://")
-            )
-            .map(async tab => {
-              try {
-                await chrome.tabs.sendMessage(tab.id, {
-                  type: global.SOTE_CONSTANTS.MESSAGE_TYPES
-                    .ABBREVIATIONS_UPDATED,
-                  timestamp: new Date().toISOString(),
-                });
-                return { success: true, tabId: tab.id };
-              } catch (error) {
-                // Ignora erros de "receiving end does not exist" silenciosamente
-                if (
-                  !error.message
-                    ?.toLowerCase()
-                    .includes("receiving end does not exist")
-                ) {
-                  logWarn(`Falha ao notificar aba ${tab.id}:`, error.message);
-                }
-                return { success: false, tabId: tab.id, error: error.message };
+        const tabPromises = tabs
+          .filter(tab => tab.id && tab.url && !tab.url.startsWith("chrome://"))
+          .map(tab =>
+            chrome.tabs.sendMessage(tab.id, message).catch(err => {
+              if (
+                !err.message
+                  ?.toLowerCase()
+                  .includes("receiving end does not exist")
+              ) {
+                logWarn(`Falha ao notificar aba ${tab.id}:`, err.message);
               }
             })
-        );
-        const successful = results.filter(r => r.value?.success).length;
-        if (results.length > 0) {
-          log(
-            `Broadcast de atualização de abreviações concluído: ${successful}/${results.length} abas notificadas.`
           );
-        }
+
+        // Envia para a UI da extensão (popup, dashboard)
+        const runtimePromise = chrome.runtime
+          .sendMessage(message)
+          .catch(err => {
+            if (
+              !err.message
+                ?.toLowerCase()
+                .includes("receiving end does not exist")
+            ) {
+              logWarn(`Falha ao notificar runtime:`, err.message);
+            }
+          });
+
+        await Promise.all([...tabPromises, runtimePromise]);
+        log(`Broadcast de STATE_UPDATED concluído.`);
       } catch (error) {
-        logError(
-          "Falha ao fazer broadcast da atualização de abreviações:",
-          error
-        );
+        logError("Falha ao fazer broadcast da atualização de estado:", error);
       }
-    }, BROADCAST_DEBOUNCE_DELAY),
+    },
 
     /**
      * Notifica todas as abas sobre a atualização das configurações.
@@ -123,22 +116,6 @@
         logError(
           "Falha ao fazer broadcast da atualização de configurações:",
           error
-        );
-      }
-    },
-
-    /**
-     * Envia uma mensagem para notificar que a semente inicial de dados foi concluída.
-     */
-    async notifyInitializationComplete() {
-      try {
-        await chrome.runtime.sendMessage({
-          type: global.SOTE_CONSTANTS.MESSAGE_TYPES.INITIAL_SEED_COMPLETE,
-        });
-        log("Enviada notificação INITIAL_SEED_COMPLETE.");
-      } catch (error) {
-        log(
-          "Não foi possível enviar INITIAL_SEED_COMPLETE (nenhum receptor ativo)."
         );
       }
     },

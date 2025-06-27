@@ -193,9 +193,42 @@ function insertTextAtCursor(textarea, textToInsert) {
   textarea.focus();
 }
 
-async function performLocalRefresh() {
-  await loadAbbreviationsAndRender();
-  await loadCategories();
+/**
+ * Envia uma mensagem para o service worker. Abstrai a chamada do chrome.runtime.
+ * @param {string} type - O tipo da mensagem (definido em SOTE_CONSTANTS).
+ * @param {object} [payload] - Os dados a serem enviados com a mensagem.
+ * @returns {Promise<any>} - A resposta do service worker.
+ */
+function sendMessageToBackground(type, payload) {
+  return new Promise((resolve, reject) => {
+    chrome.runtime.sendMessage({ type, payload }, response => {
+      if (chrome.runtime.lastError) {
+        return reject(new Error(chrome.runtime.lastError.message));
+      }
+      if (response && response.error) {
+        return reject(new Error(response.details || response.error));
+      }
+      resolve(response);
+    });
+  });
+}
+
+async function loadAndRenderAll(initialState) {
+  abbreviations = Array.isArray(initialState.abbreviations)
+    ? initialState.abbreviations
+    : [];
+
+  // As configurações e o estado de 'enabled' vêm do storage.sync, não do estado central.
+  // O estado central pode espelhar isso, mas a fonte da verdade é o sync storage para persistência.
+  isEnabled = initialState.isEnabled !== false;
+  enabledToggle.checked = isEnabled;
+  statusText.textContent = isEnabled ? "Habilitado" : "Disabilitado";
+  settings = initialState.settings || settings; // Atualiza as configurações locais
+
+  await loadCategories(); // Recalcula categorias a partir das abreviações
+  filterAbbreviations(); // Filtra e renderiza
+
+  // Se o modal de regras estiver aberto, recarrega-o
   if (
     currentAbbreviationIdForRules &&
     !rulesModalContainer.classList.contains("hidden")
@@ -204,22 +237,8 @@ async function performLocalRefresh() {
   }
 }
 
-async function loadAbbreviationsAndRender() {
-  try {
-    abbreviationsListElement.innerHTML = `<tr><td colspan="8" class="loading"><div class="loading-spinner"></div>Carregando...</td></tr>`;
-    const freshAbbreviations =
-      await window.TextExpanderDB.getAllAbbreviations();
-    abbreviations = Array.isArray(freshAbbreviations) ? freshAbbreviations : [];
-    filterAbbreviations();
-  } catch (error) {
-    console.error("Erro ao carregar abreviações:", error);
-    abbreviationsListElement.innerHTML = `<tr><td colspan="8" class="loading">Erro ao carregar.</td></tr>`;
-  }
-}
-
 async function init() {
   if (
-    typeof window.TextExpanderDB === "undefined" ||
     typeof SoteNotifier === "undefined" ||
     typeof SoteConfirmationModal === "undefined"
   ) {
@@ -331,27 +350,44 @@ async function init() {
   });
 
   // Inicialização
-  chrome.storage.sync.get("enabled", result => {
-    isEnabled = result.enabled !== false;
-    enabledToggle.checked = isEnabled;
-    statusText.textContent = isEnabled ? "Habilitado" : "Disabilitado";
-  });
-  loadSettings();
-  chrome.runtime.onMessage.addListener(message => {
-    if (
-      message.type === SOTE_CONSTANTS.MESSAGE_TYPES.ABBREVIATIONS_UPDATED ||
-      message.type === SOTE_CONSTANTS.MESSAGE_TYPES.INITIAL_SEED_COMPLETE
-    ) {
-      performLocalRefresh();
+  abbreviationsListElement.innerHTML = `<tr><td colspan="8" class="loading"><div class="loading-spinner"></div>Carregando...</td></tr>`;
+
+  // Ouve por atualizações de estado do service worker
+  chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (message.type === SOTE_CONSTANTS.MESSAGE_TYPES.STATE_UPDATED) {
+      console.log("Dashboard recebeu STATE_UPDATED:", message.payload);
+      loadAndRenderAll(message.payload);
     }
-    return true;
+    return true; // Manter o canal de mensagem aberto para outras possíveis mensagens
   });
-  await performLocalRefresh();
+
+  // Busca o estado inicial
+  try {
+    const initialState = await sendMessageToBackground(
+      SOTE_CONSTANTS.MESSAGE_TYPES.GET_STATE
+    );
+    await loadAndRenderAll(initialState);
+  } catch (error) {
+    console.error("Erro ao inicializar o dashboard:", error);
+    abbreviationsListElement.innerHTML = `<tr><td colspan="8" class="loading">Erro ao carregar. Verifique o console.</td></tr>`;
+    SoteNotifier.show(
+      "Não foi possível carregar os dados da extensão.",
+      "error"
+    );
+  }
+  loadSettings(); // Carrega configurações do sync storage
+}
+
+function getCategoriesFromAbbreviations() {
+  const categorySet = new Set(
+    abbreviations.map(abbr => abbr.category).filter(Boolean)
+  );
+  return Array.from(categorySet).sort();
 }
 
 async function loadCategories() {
   try {
-    const categories = await TextExpanderDB.getAllCategories();
+    const categories = getCategoriesFromAbbreviations();
     const allCategoryItem = categoryList.querySelector('[data-category="all"]');
     categoryList.innerHTML = "";
     if (allCategoryItem) categoryList.appendChild(allCategoryItem);
@@ -629,15 +665,19 @@ async function handleSaveAbbreviation() {
       caseSensitive: caseSensitiveCheckbox.checked,
       enabled: enabledCheckbox.checked,
     };
-    await (currentEditId
-      ? window.TextExpanderDB.updateAbbreviation(abbrData)
-      : window.TextExpanderDB.addAbbreviation(abbrData));
+
+    const messageType = currentEditId
+      ? SOTE_CONSTANTS.MESSAGE_TYPES.UPDATE_ABBREVIATION
+      : SOTE_CONSTANTS.MESSAGE_TYPES.ADD_ABBREVIATION;
+
+    await sendMessageToBackground(messageType, abbrData);
+
     hideModal();
     SoteNotifier.show(
       currentEditId ? "Abreviação atualizada!" : "Abreviação criada!",
       "success"
     );
-    await performLocalRefresh();
+    // A UI será atualizada automaticamente pela mensagem STATE_UPDATED
   } catch (error) {
     console.error("Erro ao salvar:", error);
     SoteNotifier.show(
@@ -659,9 +699,12 @@ async function handleDeleteAbbreviation(abbreviationKey) {
     message: `Tem certeza que quer excluir "<strong>${abbreviationKey}</strong>" e todas as suas regras? A ação não pode ser desfeita.`,
     onConfirm: async () => {
       try {
-        await window.TextExpanderDB.deleteAbbreviation(abbreviationKey);
+        await sendMessageToBackground(
+          SOTE_CONSTANTS.MESSAGE_TYPES.DELETE_ABBREVIATION,
+          { abbreviationKey }
+        );
         SoteNotifier.show("Abreviação excluída.", "success");
-        await performLocalRefresh();
+        // A UI será atualizada automaticamente
       } catch (error) {
         console.error("Erro ao excluir:", error);
         SoteNotifier.show("Erro ao excluir.", "error");
@@ -715,9 +758,12 @@ async function handleEditChoice() {
   }
 
   try {
-    const choiceData = await window.TextExpanderDB.getChoice(
-      currentChoiceIdForEdit
+    const response = await sendMessageToBackground(
+      SOTE_CONSTANTS.MESSAGE_TYPES.GET_CHOICE_CONFIG,
+      { id: currentChoiceIdForEdit }
     );
+    const choiceData = response.data;
+
     if (choiceData && choiceData.options) {
       showChoiceConfigModal(choiceData.options, currentChoiceIdForEdit);
     } else {
@@ -815,12 +861,17 @@ async function handleSaveChoice() {
 
   try {
     if (isEditing) {
-      // Lógica de atualização
-      await window.TextExpanderDB.updateChoice(choiceId, options);
+      await sendMessageToBackground(
+        SOTE_CONSTANTS.MESSAGE_TYPES.UPDATE_CHOICE,
+        { choiceId, options }
+      );
       SoteNotifier.show("Ação de escolha atualizada!", "success");
     } else {
-      // Lógica de criação (existente)
-      const newChoiceId = await window.TextExpanderDB.addChoice(options);
+      const response = await sendMessageToBackground(
+        SOTE_CONSTANTS.MESSAGE_TYPES.ADD_CHOICE,
+        { options }
+      );
+      const newChoiceId = response.newChoiceId;
       const placeholder = `$choice(id=${newChoiceId})$`;
       if (activeTextareaForChoice) {
         insertTextAtCursor(activeTextareaForChoice, placeholder);
@@ -1121,13 +1172,15 @@ async function handleSaveRule() {
       break;
   }
   try {
-    await (currentEditingRuleId
-      ? window.TextExpanderDB.updateExpansionRule(ruleData)
-      : window.TextExpanderDB.addExpansionRule(ruleData));
+    const messageType = currentEditingRuleId
+      ? SOTE_CONSTANTS.MESSAGE_TYPES.UPDATE_RULE
+      : SOTE_CONSTANTS.MESSAGE_TYPES.ADD_RULE;
+    await sendMessageToBackground(messageType, ruleData);
+
     ruleForm.classList.add("hidden");
     addRuleBtn.classList.remove("hidden");
     SoteNotifier.show("Regra salva!", "success");
-    await performLocalRefresh();
+    // A UI será atualizada automaticamente
   } catch (error) {
     console.error("Erro ao salvar regra:", error);
     SoteNotifier.show(
@@ -1189,9 +1242,12 @@ async function handleDeleteRule(ruleId) {
     message: "Tem certeza que deseja excluir esta regra?",
     onConfirm: async () => {
       try {
-        await window.TextExpanderDB.deleteExpansionRule(ruleId);
+        await sendMessageToBackground(
+          SOTE_CONSTANTS.MESSAGE_TYPES.DELETE_RULE,
+          { ruleId }
+        );
         SoteNotifier.show("Regra excluída.", "success");
-        await performLocalRefresh();
+        // A UI será atualizada automaticamente
       } catch (error) {
         console.error("Erro ao excluir regra:", error);
         SoteNotifier.show("Erro ao excluir regra.", "error");
@@ -1343,12 +1399,12 @@ async function generateImportPreview(data) {
       info = "Será adicionada.",
       validationError = null;
     try {
-      window.TextExpanderDB.AbbreviationModel.validate(item, true);
+      // A validação agora ocorre no backend, mas podemos fazer uma pré-validação aqui
     } catch (e) {
       validationError = e.message;
     }
-    const existing = await window.TextExpanderDB.getAbbreviation(
-      item.abbreviation
+    const existing = abbreviations.find(
+      a => a.abbreviation === item.abbreviation
     );
     if (existing) {
       status = "updated";
@@ -1376,6 +1432,8 @@ async function handleConfirmImport() {
   const importMode = document.querySelector(
     'input[name="import-mode"]:checked'
   ).value;
+  const isMerge = importMode === "merge";
+
   const dataToImport = importPreviewData.filter(
     item => item.status !== "skipped"
   );
@@ -1385,16 +1443,24 @@ async function handleConfirmImport() {
     return;
   }
   try {
-    if (importMode === "replace") {
-      await window.TextExpanderDB.clearAllAbbreviations();
+    if (!isMerge) {
+      // Se não for 'merge', é 'replace', então limpamos os dados primeiro.
+      await sendMessageToBackground(
+        SOTE_CONSTANTS.MESSAGE_TYPES.CLEAR_ALL_DATA
+      );
     }
-    const importedCount = await window.TextExpanderDB.importAbbreviations(
-      dataToImport,
-      importMode === "merge"
+
+    await sendMessageToBackground(
+      SOTE_CONSTANTS.MESSAGE_TYPES.IMPORT_ABBREVIATIONS,
+      { data: dataToImport, isMerge }
     );
+
     hideImportModal();
-    SoteNotifier.show(`${importedCount} abreviações processadas!`, "success");
-    await performLocalRefresh();
+    SoteNotifier.show(
+      `${dataToImport.length} abreviações processadas!`,
+      "success"
+    );
+    // A UI será atualizada automaticamente
   } catch (e) {
     SoteNotifier.show("Erro durante a importação.", "error");
     console.error(e);
@@ -1417,9 +1483,8 @@ function exportDataAsJson(data, fileName) {
 
 async function handleExportAll() {
   try {
-    const data = await window.TextExpanderDB.getAllAbbreviations();
     exportDataAsJson(
-      data,
+      abbreviations,
       `sote-export-all-${new Date().toISOString().slice(0, 10)}.json`
     );
   } catch (e) {
@@ -1452,8 +1517,8 @@ async function handleExportCategory() {
   }
 
   try {
-    const data = await window.TextExpanderDB.getAbbreviationsByCategory(
-      currentCategory
+    const data = abbreviations.filter(
+      abbr => abbr.category === currentCategory
     );
     if (data.length === 0) {
       SoteNotifier.show(
@@ -1542,19 +1607,7 @@ function handleSaveSettings() {
     hideSettingsModal();
     SoteNotifier.show("Configurações salvas.", "success");
     settings.maxChoices = newSettings.maxChoices;
-
-    chrome.tabs.query({}, tabs =>
-      tabs.forEach(
-        tab =>
-          tab.id &&
-          chrome.tabs
-            .sendMessage(tab.id, {
-              type: SOTE_CONSTANTS.MESSAGE_TYPES.SETTINGS_UPDATED,
-              settings: newSettings,
-            })
-            .catch(() => {})
-      )
-    );
+    // O listener `storage.onChanged` no service-worker cuidará de propagar a mudança.
   });
 }
 
@@ -1565,10 +1618,12 @@ async function handleClearData() {
       "Esta ação é <strong>permanente</strong>. Todas as abreviações e regras serão removidas.",
     onConfirm: async () => {
       try {
-        await window.TextExpanderDB.clearAllAbbreviations();
+        await sendMessageToBackground(
+          SOTE_CONSTANTS.MESSAGE_TYPES.CLEAR_ALL_DATA
+        );
         hideSettingsModal();
         SoteNotifier.show("Todos os dados foram apagados.", "success");
-        await performLocalRefresh();
+        // A UI será atualizada automaticamente
       } catch (e) {
         console.error(e);
         SoteNotifier.show("Erro ao apagar dados.", "error");
