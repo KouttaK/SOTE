@@ -2,17 +2,21 @@
 
 // ===== IMPORTS =====
 try {
+  // Scripts de Utilitários e DB
   importScripts("../utils/constants.js");
   importScripts("../utils/db.js");
+
+  // Módulos refatorados
+  importScripts("modules/validations.js");
+  importScripts("modules/data-handler.js");
+  importScripts("modules/db-operations.js");
+  importScripts("modules/broadcasting.js");
 } catch (error) {
-  console.error("[SOTE Service Worker] Failed to import scripts:", error);
+  console.error("[SOTE Service Worker] Falha ao importar scripts:", error);
 }
 
 // ===== CONSTANTS =====
 const DEBUG_PREFIX = "[SOTE Service Worker]";
-const BROADCAST_DEBOUNCE_DELAY = 100;
-const MAX_RETRY_ATTEMPTS = 3;
-const RETRY_DELAY = 1000;
 
 // ===== UTILITY FUNCTIONS =====
 function log(message, ...args) {
@@ -23,531 +27,169 @@ function logError(message, error) {
   console.error(`${DEBUG_PREFIX} ${message}`, error);
 }
 
-function logWarn(message, ...args) {
-  console.warn(`${DEBUG_PREFIX} ${message}`, ...args);
-}
-
-// Debounce utility for performance
-function debounce(func, delay) {
-  let timeoutId;
-  return function (...args) {
-    clearTimeout(timeoutId);
-    timeoutId = setTimeout(() => func.apply(this, args), delay);
-  };
-}
-
-// Retry utility for resilient operations
-async function retryOperation(
-  operation,
-  maxAttempts = MAX_RETRY_ATTEMPTS,
-  delay = RETRY_DELAY
-) {
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    try {
-      return await operation();
-    } catch (error) {
-      if (attempt === maxAttempts) {
-        throw error;
-      }
-      logWarn(
-        `Operation failed (attempt ${attempt}/${maxAttempts}), retrying in ${delay}ms:`,
-        error.message
-      );
-      await new Promise(resolve => setTimeout(resolve, delay));
-    }
-  }
-}
-
-// Validate constants availability
-function validateConstants() {
-  if (!self.SOTE_CONSTANTS) {
-    throw new Error("SOTE_CONSTANTS not available");
-  }
-
-  const required = ["STORE_ABBREVIATIONS", "STORE_RULES", "MESSAGE_TYPES"];
-  for (const prop of required) {
-    if (!self.SOTE_CONSTANTS[prop]) {
-      throw new Error(`SOTE_CONSTANTS.${prop} not available`);
-    }
-  }
-
-  return true;
-}
-
-// Validate database availability
-function validateDatabase() {
-  if (typeof TextExpanderDB === "undefined") {
-    throw new Error("TextExpanderDB not available");
-  }
-  return true;
-}
-
-// ===== DEFAULT DATA =====
-function getDefaultAbbreviations() {
-  const timestamp = new Date().toISOString();
-
-  return [
-    {
-      abbreviation: "btw",
-      expansion: "by the way",
-      caseSensitive: false,
-      category: "Comum",
-      enabled: true,
-      createdAt: timestamp,
-      lastUsed: null,
-      usageCount: 0,
-      rules: [],
-    },
-    {
-      abbreviation: "afaik",
-      expansion: "as far as I know",
-      caseSensitive: false,
-      category: "Comum",
-      enabled: true,
-      createdAt: timestamp,
-      lastUsed: null,
-      usageCount: 0,
-      rules: [],
-    },
-    {
-      abbreviation: "ty",
-      expansion: "thank you",
-      caseSensitive: false,
-      category: "Comum",
-      enabled: true,
-      createdAt: timestamp,
-      lastUsed: null,
-      usageCount: 0,
-      rules: [],
-    },
-    {
-      abbreviation: "omg",
-      expansion: "oh my god",
-      caseSensitive: false,
-      category: "Comum",
-      enabled: true,
-      createdAt: timestamp,
-      lastUsed: null,
-      usageCount: 0,
-      rules: [],
-    },
-    {
-      abbreviation: "brb",
-      expansion: "be right back",
-      caseSensitive: false,
-      category: "Comum",
-      enabled: true,
-      createdAt: timestamp,
-      lastUsed: null,
-      usageCount: 0,
-      rules: [],
-    },
-  ];
-}
-
-// ===== DATABASE OPERATIONS =====
+// ===== DATABASE INITIALIZATION =====
 async function initializeDatabase() {
   try {
-    validateConstants();
-    validateDatabase();
+    SoteValidators.validateAll();
+    log("Inicializando banco de dados...");
 
-    log("Initializing database...");
+    // As migrações são tratadas dentro de TextExpanderDB.openDatabase
+    await TextExpanderDB.openDatabase();
 
-    // As migrações, incluindo a criação do novo 'STORE_CHOICES', são tratadas aqui
-    const db = await retryOperation(() => TextExpanderDB.openDatabase());
+    // Popula com dados padrão se necessário
+    await SoteDataHandler.seedInitialDataIfNeeded();
 
-    // Verifica a estrutura do banco de dados
-    const transaction = db.transaction(
-      [
-        self.SOTE_CONSTANTS.STORE_ABBREVIATIONS,
-        self.SOTE_CONSTANTS.STORE_RULES,
-      ],
-      "readonly"
-    );
-
-    const store = transaction.objectStore(
-      self.SOTE_CONSTANTS.STORE_ABBREVIATIONS
-    );
-
-    // Verifica se precisa popular com dados padrão
-    const existingCount = await new Promise((resolve, reject) => {
-      const countRequest = store.count();
-      countRequest.onsuccess = () => resolve(countRequest.result);
-      countRequest.onerror = () => reject(countRequest.error);
-    });
-
-    if (existingCount === 0) {
-      await seedDefaultAbbreviations();
-    } else {
-      log(`Database already contains ${existingCount} abbreviations`);
-    }
-
-    await notifyInitializationComplete();
-    log("Database initialization completed successfully");
+    await SoteBroadcaster.notifyInitializationComplete();
+    log("Inicialização do banco de dados concluída com sucesso.");
   } catch (error) {
-    logError("Failed to initialize database:", error);
+    logError("Falha ao inicializar o banco de dados:", error);
     throw error;
   }
 }
 
-async function seedDefaultAbbreviations() {
-  const defaultAbbreviations = getDefaultAbbreviations();
-  log(`Seeding ${defaultAbbreviations.length} default abbreviations...`);
-
-  const results = await Promise.allSettled(
-    defaultAbbreviations.map(async abbr => {
-      try {
-        const existing = await TextExpanderDB.getAbbreviation(
-          abbr.abbreviation
-        );
-
-        if (!existing) {
-          await TextExpanderDB.addAbbreviation(abbr);
-          log(`Added default abbreviation: "${abbr.abbreviation}"`);
-          return { success: true, abbreviation: abbr.abbreviation };
-        } else {
-          log(`Abbreviation "${abbr.abbreviation}" already exists, skipping`);
-          return {
-            success: true,
-            abbreviation: abbr.abbreviation,
-            skipped: true,
-          };
-        }
-      } catch (error) {
-        logError(`Failed to add abbreviation "${abbr.abbreviation}":`, error);
-        return { success: false, abbreviation: abbr.abbreviation, error };
-      }
-    })
-  );
-
-  const successful = results.filter(r => r.value?.success).length;
-  const failed = results.filter(r => !r.value?.success).length;
-
-  log(`Seeding completed: ${successful} successful, ${failed} failed`);
-
-  if (failed > 0) {
-    const failures = results
-      .filter(r => !r.value?.success)
-      .map(r => r.value?.abbreviation || "unknown");
-    logWarn("Failed to seed abbreviations:", failures);
-  }
-}
-
-async function notifyInitializationComplete() {
-  try {
-    await chrome.runtime.sendMessage({
-      type: self.SOTE_CONSTANTS.MESSAGE_TYPES.INITIAL_SEED_COMPLETE,
-    });
-    log("Sent INITIAL_SEED_COMPLETE notification");
-  } catch (error) {
-    log("Could not send INITIAL_SEED_COMPLETE (no receivers)");
-  }
-}
-
 // ===== MESSAGE HANDLERS =====
-async function handleGetAbbreviations(message, sender, sendResponse) {
+async function handleGetAbbreviations(sendResponse) {
   try {
-    validateDatabase();
-
-    const abbreviationsArray = await retryOperation(() =>
-      TextExpanderDB.getAllAbbreviations()
-    );
-
-    log(
-      `Retrieved ${abbreviationsArray?.length || 0} abbreviations from database`
-    );
-
+    const abbreviations = await SoteDBOperations.getAbbreviations();
     sendResponse({
-      abbreviations: abbreviationsArray || [],
+      abbreviations: abbreviations,
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
-    logError("Failed to get abbreviations:", error);
     sendResponse({
-      error: "Failed to retrieve abbreviations",
+      error: "Falha ao recuperar abreviações.",
       details: error.message,
     });
   }
 }
 
-async function handleUpdateUsage(message, sender, sendResponse) {
+async function handleUpdateUsage(message, sendResponse) {
   try {
-    validateDatabase();
-
-    const abbreviationKey = message.abbreviation;
-    if (!abbreviationKey) {
-      sendResponse({ error: "Abbreviation key not provided" });
-      return;
-    }
-
-    const abbrData = await retryOperation(() =>
-      TextExpanderDB.getAbbreviation(abbreviationKey)
-    );
-
-    if (!abbrData) {
-      sendResponse({ error: "Abbreviation not found" });
-      return;
-    }
-
-    const updatedData = {
-      ...abbrData,
-      usageCount: (abbrData.usageCount || 0) + 1,
-      lastUsed: new Date().toISOString(),
-    };
-
-    await retryOperation(() => TextExpanderDB.updateAbbreviation(updatedData));
-
-    log(
-      `Updated usage for "${abbreviationKey}": count=${updatedData.usageCount}`
-    );
-
-    sendResponse({
-      success: true,
-      usageCount: updatedData.usageCount,
-    });
-
-    broadcastAbbreviationsUpdate();
+    const result = await SoteDBOperations.updateUsage(message.abbreviation);
+    sendResponse(result);
+    // Dispara o broadcast após a resposta ser enviada
+    SoteBroadcaster.broadcastAbbreviationsUpdate();
   } catch (error) {
-    logError("Failed to update usage stats:", error);
     sendResponse({
-      error: "Failed to update usage statistics",
+      error: "Falha ao atualizar estatísticas de uso.",
       details: error.message,
     });
   }
 }
 
-// NOVO: Handler para buscar a configuração de uma escolha
-async function handleGetChoiceConfig(message, sender, sendResponse) {
+async function handleGetChoiceConfig(message, sendResponse) {
   try {
-    validateDatabase();
-    const choiceId = message.id;
-    if (!choiceId) {
-      sendResponse({ error: "ID da escolha não fornecido" });
-      return;
-    }
-
-    // A função getChoice deve ter sido adicionada em utils/db.js
-    const choiceData = await TextExpanderDB.getChoice(choiceId);
-
-    if (choiceData) {
-      sendResponse({ data: choiceData });
-    } else {
-      sendResponse({
-        error: `Configuração de escolha com ID ${choiceId} não encontrada.`,
-      });
-    }
+    const choiceData = await SoteDBOperations.getChoiceConfig(message.id);
+    sendResponse({ data: choiceData });
   } catch (error) {
-    logError("Falha ao buscar configuração de escolha:", error);
     sendResponse({
-      error: "Falha ao buscar configuração de escolha",
+      error: "Falha ao buscar configuração de escolha.",
       details: error.message,
     });
-  }
-}
-
-// ===== BROADCASTING =====
-const broadcastAbbreviationsUpdate = debounce(async () => {
-  try {
-    const tabs = await chrome.tabs.query({});
-    const results = await Promise.allSettled(
-      tabs
-        .filter(tab => tab.id && tab.url && !tab.url.startsWith("chrome://"))
-        .map(async tab => {
-          try {
-            await chrome.tabs.sendMessage(tab.id, {
-              type: self.SOTE_CONSTANTS.MESSAGE_TYPES.ABBREVIATIONS_UPDATED,
-              timestamp: new Date().toISOString(),
-            });
-            return { success: true, tabId: tab.id };
-          } catch (error) {
-            if (
-              !error.message
-                ?.toLowerCase()
-                .includes("receiving end does not exist")
-            ) {
-              logWarn(`Failed to notify tab ${tab.id}:`, error.message);
-            }
-            return { success: false, tabId: tab.id, error: error.message };
-          }
-        })
-    );
-
-    const successful = results.filter(r => r.value?.success).length;
-    const total = results.length;
-
-    if (total > 0) {
-      log(`Broadcast completed: ${successful}/${total} tabs notified`);
-    }
-  } catch (error) {
-    logError("Failed to broadcast abbreviations update:", error);
-  }
-}, BROADCAST_DEBOUNCE_DELAY);
-
-async function handleSettingsUpdate(changes) {
-  try {
-    const tabs = await chrome.tabs.query({});
-    const settings = {};
-
-    Object.keys(changes).forEach(key => {
-      if (changes[key].newValue !== undefined) {
-        settings[key] = changes[key].newValue;
-      }
-    });
-
-    if (Object.keys(settings).length === 0) return;
-
-    const results = await Promise.allSettled(
-      tabs
-        .filter(tab => tab.id && tab.url && !tab.url.startsWith("chrome://"))
-        .map(async tab => {
-          try {
-            await chrome.tabs.sendMessage(tab.id, {
-              type: self.SOTE_CONSTANTS.MESSAGE_TYPES.SETTINGS_UPDATED,
-              settings: settings,
-              timestamp: new Date().toISOString(),
-            });
-            return { success: true, tabId: tab.id };
-          } catch (error) {
-            if (
-              !error.message
-                ?.toLowerCase()
-                .includes("receiving end does not exist")
-            ) {
-              logWarn(
-                `Failed to notify tab ${tab.id} about settings:`,
-                error.message
-              );
-            }
-            return { success: false, tabId: tab.id };
-          }
-        })
-    );
-
-    const successful = results.filter(r => r.value?.success).length;
-    log(
-      `Settings update broadcast: ${successful}/${results.length} tabs notified`
-    );
-  } catch (error) {
-    logError("Failed to broadcast settings update:", error);
   }
 }
 
 // ===== EVENT LISTENERS =====
-self.addEventListener("install", event => {
-  log("Service Worker installing...");
 
+// Instalação do Service Worker
+self.addEventListener("install", event => {
+  log("Service Worker instalando...");
   event.waitUntil(
     initializeDatabase().catch(error => {
-      logError("Installation failed:", error);
-      throw error;
+      logError("Falha na instalação:", error);
+      // Não relançar o erro para não impedir a instalação
     })
   );
 });
 
+// Ativação do Service Worker
 self.addEventListener("activate", event => {
-  log("Service Worker activating...");
-
+  log("Service Worker ativando...");
   event.waitUntil(
-    (async () => {
-      await self.clients.claim();
-      log("Service Worker activated and claimed all clients");
-    })()
+    self.clients.claim().then(() => {
+      log("Service Worker ativado e controlando todos os clientes.");
+    })
   );
 });
 
-// Handle runtime messages
+// Listener principal de mensagens
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (!message?.type) {
-    sendResponse({ error: "Message type not specified" });
+    sendResponse({ error: "Tipo de mensagem não especificado." });
     return false;
   }
 
   try {
-    validateConstants();
+    SoteValidators.validateConstants();
+    const { MESSAGE_TYPES } = self.SOTE_CONSTANTS;
 
-    const messageType = message.type;
-    const messageTypes = self.SOTE_CONSTANTS.MESSAGE_TYPES;
+    switch (message.type) {
+      case MESSAGE_TYPES.GET_ABBREVIATIONS:
+        handleGetAbbreviations(sendResponse);
+        return true; // Resposta assíncrona
 
-    switch (messageType) {
-      case messageTypes.GET_ABBREVIATIONS:
-        handleGetAbbreviations(message, sender, sendResponse);
-        return true; // Indica resposta assíncrona
+      case MESSAGE_TYPES.UPDATE_USAGE:
+        handleUpdateUsage(message, sendResponse);
+        return true; // Resposta assíncrona
 
-      case messageTypes.UPDATE_USAGE:
-        handleUpdateUsage(message, sender, sendResponse);
-        return true; // Indica resposta assíncrona
-
-      // NOVO: Case para a nova mensagem
-      case messageTypes.GET_CHOICE_CONFIG:
-        handleGetChoiceConfig(message, sender, sendResponse);
-        return true; // Indica resposta assíncrona
+      case MESSAGE_TYPES.GET_CHOICE_CONFIG:
+        handleGetChoiceConfig(message, sendResponse);
+        return true; // Resposta assíncrona
 
       default:
-        log(`Unknown message type: ${messageType}`);
-        sendResponse({ error: "Unknown message type" });
+        log(`Tipo de mensagem desconhecido: ${message.type}`);
+        sendResponse({ error: "Tipo de mensagem desconhecido." });
         return false;
     }
   } catch (error) {
-    logError("Error handling message:", error);
+    logError("Erro ao manipular mensagem:", error);
     sendResponse({
-      error: "Internal error handling message",
+      error: "Erro interno ao manipular mensagem.",
       details: error.message,
     });
     return false;
   }
 });
 
-// Handle storage changes
+// Listener para mudanças no storage
 chrome.storage.onChanged.addListener((changes, namespace) => {
   if (namespace !== "sync") return;
-
-  log("Storage changes detected:", Object.keys(changes));
+  log("Mudanças no storage detectadas:", Object.keys(changes));
 
   if (changes.abbreviations) {
-    broadcastAbbreviationsUpdate();
+    // Embora não usado diretamente, mantém a lógica
+    SoteBroadcaster.broadcastAbbreviationsUpdate();
   }
 
   const settingsChanges = Object.keys(changes)
     .filter(key => key !== "abbreviations")
-    .reduce((obj, key) => {
-      obj[key] = changes[key];
-      return obj;
-    }, {});
+    .reduce((obj, key) => ({ ...obj, [key]: changes[key] }), {});
 
   if (Object.keys(settingsChanges).length > 0) {
-    handleSettingsUpdate(settingsChanges);
+    SoteBroadcaster.broadcastSettingsUpdate(settingsChanges);
   }
 });
 
-// Handle extension startup
+// Inicialização da extensão
 chrome.runtime.onStartup.addListener(() => {
-  log("Extension startup detected");
-
-  setTimeout(async () => {
-    try {
-      validateConstants();
-      validateDatabase();
-      await notifyInitializationComplete();
-    } catch (error) {
-      logError("Startup validation failed:", error);
-    }
-  }, 1000);
+  log("Extensão iniciada.");
+  // Uma pequena espera para garantir que outras partes estejam prontas
+  setTimeout(() => SoteValidators.validateAll().catch(() => {}), 1000);
 });
 
-// Handle installation/update
+// Instalação/Atualização da extensão
 chrome.runtime.onInstalled.addListener(details => {
-  log(`Extension installed/updated: ${details.reason}`);
-
+  log(`Extensão instalada/atualizada: ${details.reason}`);
   if (details.reason === "install") {
-    log("First time installation detected");
+    log("Detectada primeira instalação.");
   } else if (details.reason === "update") {
-    log(`Updated from version ${details.previousVersion}`);
+    log(`Atualizado da versão ${details.previousVersion}`);
   }
 });
 
-// Global error handler
+// Handlers de Erro Globais
 self.addEventListener("error", event => {
-  logError("Unhandled error in service worker:", {
+  logError("Erro não tratado no service worker:", {
     message: event.message,
     filename: event.filename,
     lineno: event.lineno,
@@ -557,8 +199,8 @@ self.addEventListener("error", event => {
 });
 
 self.addEventListener("unhandledrejection", event => {
-  logError("Unhandled promise rejection in service worker:", event.reason);
+  logError("Promise rejection não tratada no service worker:", event.reason);
   event.preventDefault();
 });
 
-log("Service Worker script loaded successfully");
+log("Script do Service Worker carregado com sucesso.");
