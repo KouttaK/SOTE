@@ -4,7 +4,7 @@
 try {
   importScripts("../utils/constants.js");
   importScripts("../utils/db.js");
-  importScripts("../utils/StateManager.js"); // <<< NOVO
+  importScripts("../utils/StateManager.js");
 
   importScripts("modules/validations.js");
   importScripts("modules/data-handler.js");
@@ -21,6 +21,10 @@ const DEBUG_PREFIX = "[SOTE Service Worker]";
 // ===== UTILITY FUNCTIONS =====
 function log(message, ...args) {
   console.log(`${DEBUG_PREFIX} ${message}`, ...args);
+}
+
+function logWarn(message, ...args) {
+  console.warn(`${DEBUG_PREFIX} ${message}`, ...args);
 }
 
 function logError(message, error) {
@@ -69,7 +73,7 @@ async function initializeApp() {
       isEnabled: settings.enabled !== false,
     };
 
-    // Cria e configura o StateManager - CORRIGIDO
+    // Cria e configura o StateManager
     stateManager = new self.StateManager(initialState, { enableLogging: true });
 
     // Inscreve o broadcaster para propagar as mudanças de estado
@@ -85,113 +89,126 @@ async function initializeApp() {
 }
 
 // ===== MESSAGE HANDLER =====
-async function handleMessage(message, sender, sendResponse) {
-  // Garante que o app está inicializado antes de processar mensagens
-  if (!stateManager) {
-    logWarn("StateManager ainda não pronto, aguardando inicialização...");
-    await initializeApp();
-  }
 
-  const { type, payload } = message;
-  // CORRIGIDO
-  const { MESSAGE_TYPES } = self.SOTE_CONSTANTS;
-
-  try {
-    switch (type) {
-      // --- Leitura de Estado ---
-      case MESSAGE_TYPES.GET_STATE:
-        sendResponse(stateManager.getState());
-        break;
-
-      // --- Operações de Abreviação ---
-      case MESSAGE_TYPES.ADD_ABBREVIATION:
-        await TextExpanderDB.addAbbreviation(payload);
-        await refreshStateFromDB();
-        sendResponse({ success: true });
-        break;
-
-      case MESSAGE_TYPES.UPDATE_ABBREVIATION:
-        await TextExpanderDB.updateAbbreviation(payload);
-        await refreshStateFromDB();
-        sendResponse({ success: true });
-        break;
-
-      case MESSAGE_TYPES.DELETE_ABBREVIATION:
-        await TextExpanderDB.deleteAbbreviation(payload.abbreviationKey);
-        await refreshStateFromDB();
-        sendResponse({ success: true });
-        break;
-
-      case MESSAGE_TYPES.IMPORT_ABBREVIATIONS:
-        await TextExpanderDB.importAbbreviations(payload.data, payload.isMerge);
-        await refreshStateFromDB();
-        sendResponse({ success: true });
-        break;
-
-      case MESSAGE_TYPES.CLEAR_ALL_DATA:
-        await TextExpanderDB.clearAllAbbreviations();
-        await refreshStateFromDB();
-        sendResponse({ success: true });
-        break;
-
-      // --- Operações de Regra ---
-      case MESSAGE_TYPES.ADD_RULE:
-        await TextExpanderDB.addExpansionRule(payload);
-        await refreshStateFromDB();
-        sendResponse({ success: true });
-        break;
-
-      case MESSAGE_TYPES.UPDATE_RULE:
-        await TextExpanderDB.updateExpansionRule(payload);
-        await refreshStateFromDB();
-        sendResponse({ success: true });
-        break;
-
-      case MESSAGE_TYPES.DELETE_RULE:
-        await TextExpanderDB.deleteExpansionRule(payload.ruleId);
-        await refreshStateFromDB();
-        sendResponse({ success: true });
-        break;
-
-      // --- Operações de Escolha ---
-      case MESSAGE_TYPES.ADD_CHOICE:
-        const newChoiceId = await TextExpanderDB.addChoice(payload.options);
-        await refreshStateFromDB(); // Embora não afete abreviações, mantém consistência se necessário no futuro
-        sendResponse({ success: true, newChoiceId });
-        break;
-
-      case MESSAGE_TYPES.UPDATE_CHOICE:
-        await TextExpanderDB.updateChoice(payload.choiceId, payload.options);
-        await refreshStateFromDB();
-        sendResponse({ success: true });
-        break;
-
-      case MESSAGE_TYPES.GET_CHOICE_CONFIG:
-        const choiceData = await SoteDBOperations.getChoiceConfig(message.id);
-        sendResponse({ data: choiceData });
-        break;
-
-      // --- Outras Ações ---
-      case MESSAGE_TYPES.UPDATE_USAGE:
-        await SoteDBOperations.updateUsage(message.abbreviation);
-        await refreshStateFromDB();
-        sendResponse({ success: true });
-        break;
-
-      default:
-        log(`Tipo de mensagem desconhecido recebido: ${type}`);
-        sendResponse({ error: "Tipo de mensagem desconhecido." });
-        return false; // Indica que a resposta não será assíncrona
+/**
+ * Listener de mensagens refatorado para lidar corretamente com a comunicação assíncrona.
+ * @param {object} message - A mensagem recebida.
+ * @param {chrome.runtime.MessageSender} sender - Informações sobre quem enviou a mensagem.
+ * @param {function} sendResponse - Função para enviar a resposta.
+ * @returns {boolean} - Retorna `true` para indicar que a resposta será enviada de forma assíncrona.
+ */
+function handleMessage(message, sender, sendResponse) {
+  // Envolve a lógica assíncrona em uma IIFE (Immediately Invoked Function Expression)
+  (async () => {
+    // Garante que o app está inicializado antes de processar mensagens
+    if (!stateManager) {
+      logWarn("StateManager ainda não pronto, aguardando inicialização...");
+      await initializeApp();
     }
-  } catch (error) {
-    logError(`Erro ao processar a mensagem ${type}:`, error);
-    sendResponse({
-      error: "Falha ao processar a requisição.",
-      details: error.message,
-    });
-  }
 
-  return true; // Indica que a resposta é (ou pode ser) assíncrona
+    const { type, payload } = message;
+    const { MESSAGE_TYPES } = self.SOTE_CONSTANTS;
+
+    try {
+      switch (type) {
+        // --- Leitura de Estado ---
+        case MESSAGE_TYPES.GET_STATE:
+          sendResponse(stateManager.getState());
+          break;
+
+        // --- Operações de Abreviação ---
+        case MESSAGE_TYPES.ADD_ABBREVIATION:
+          await TextExpanderDB.addAbbreviation(payload);
+          await refreshStateFromDB();
+          sendResponse({ success: true });
+          break;
+
+        case MESSAGE_TYPES.UPDATE_ABBREVIATION:
+          await TextExpanderDB.updateAbbreviation(payload);
+          await refreshStateFromDB();
+          sendResponse({ success: true });
+          break;
+
+        case MESSAGE_TYPES.DELETE_ABBREVIATION:
+          await TextExpanderDB.deleteAbbreviation(payload.abbreviationKey);
+          await refreshStateFromDB();
+          sendResponse({ success: true });
+          break;
+
+        case MESSAGE_TYPES.IMPORT_ABBREVIATIONS:
+          await TextExpanderDB.importAbbreviations(
+            payload.data,
+            payload.isMerge
+          );
+          await refreshStateFromDB();
+          sendResponse({ success: true });
+          break;
+
+        case MESSAGE_TYPES.CLEAR_ALL_DATA:
+          await TextExpanderDB.clearAllAbbreviations();
+          await refreshStateFromDB();
+          sendResponse({ success: true });
+          break;
+
+        // --- Operações de Regra ---
+        case MESSAGE_TYPES.ADD_RULE:
+          await TextExpanderDB.addExpansionRule(payload);
+          await refreshStateFromDB();
+          sendResponse({ success: true });
+          break;
+
+        case MESSAGE_TYPES.UPDATE_RULE:
+          await TextExpanderDB.updateExpansionRule(payload);
+          await refreshStateFromDB();
+          sendResponse({ success: true });
+          break;
+
+        case MESSAGE_TYPES.DELETE_RULE:
+          await TextExpanderDB.deleteExpansionRule(payload.ruleId);
+          await refreshStateFromDB();
+          sendResponse({ success: true });
+          break;
+
+        // --- Operações de Escolha ---
+        case MESSAGE_TYPES.ADD_CHOICE:
+          const newChoiceId = await TextExpanderDB.addChoice(payload.options);
+          await refreshStateFromDB();
+          sendResponse({ success: true, newChoiceId });
+          break;
+
+        case MESSAGE_TYPES.UPDATE_CHOICE:
+          await TextExpanderDB.updateChoice(payload.choiceId, payload.options);
+          await refreshStateFromDB();
+          sendResponse({ success: true });
+          break;
+
+        case MESSAGE_TYPES.GET_CHOICE_CONFIG:
+          const choiceData = await SoteDBOperations.getChoiceConfig(message.id);
+          sendResponse({ data: choiceData });
+          break;
+
+        // --- Outras Ações ---
+        case MESSAGE_TYPES.UPDATE_USAGE:
+          await SoteDBOperations.updateUsage(message.abbreviation);
+          await refreshStateFromDB();
+          sendResponse({ success: true });
+          break;
+
+        default:
+          log(`Tipo de mensagem desconhecido recebido: ${type}`);
+          sendResponse({ error: "Tipo de mensagem desconhecido." });
+      }
+    } catch (error) {
+      logError(`Erro ao processar a mensagem ${type}:`, error);
+      sendResponse({
+        error: "Falha ao processar a requisição.",
+        details: error.message,
+      });
+    }
+  })();
+
+  // Retorna true de forma síncrona para manter a porta de comunicação aberta.
+  return true;
 }
 
 // ===== EVENT LISTENERS =====
