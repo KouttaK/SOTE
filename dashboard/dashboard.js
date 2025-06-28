@@ -696,7 +696,11 @@ function handleEditAbbreviation(abbr) {
 async function handleDeleteAbbreviation(abbreviationKey) {
   SoteConfirmationModal.show({
     title: "Excluir Abreviação",
-    message: `Tem certeza que quer excluir "<strong>${abbreviationKey}</strong>" e todas as suas regras? A ação não pode ser desfeita.`,
+    message: `Tem certeza que quer excluir "<strong>${escapeHtml(
+      abbreviationKey
+    )}</strong>" e todas as suas regras?`,
+    confirmText: "Excluir",
+    requireInput: false,
     onConfirm: async () => {
       try {
         await sendMessageToBackground(
@@ -1240,6 +1244,8 @@ async function handleDeleteRule(ruleId) {
   SoteConfirmationModal.show({
     title: "Excluir Regra",
     message: "Tem certeza que deseja excluir esta regra?",
+    confirmText: "Excluir",
+    requireInput: false,
     onConfirm: async () => {
       try {
         await sendMessageToBackground(
@@ -1615,7 +1621,9 @@ async function handleClearData() {
   SoteConfirmationModal.show({
     title: "Apagar Todos os Dados",
     message:
-      "Esta ação é <strong>permanente</strong>. Todas as abreviações e regras serão removidas.",
+      'Esta ação é <strong>permanente</strong> e removerá todas as suas abreviações, regras e dados salvos. Para confirmar, digite "Confirmo" abaixo.',
+    confirmText: "Apagar Tudo Permanentemente",
+    requireInput: true,
     onConfirm: async () => {
       try {
         await sendMessageToBackground(

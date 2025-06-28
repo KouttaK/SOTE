@@ -183,13 +183,13 @@ function handleMessage(message, sender, sendResponse) {
           break;
 
         case MESSAGE_TYPES.GET_CHOICE_CONFIG:
-          const choiceData = await SoteDBOperations.getChoiceConfig(message.id);
+          const choiceData = await SoteDBOperations.getChoiceConfig(payload.id);
           sendResponse({ data: choiceData });
           break;
 
         // --- Outras Ações ---
         case MESSAGE_TYPES.UPDATE_USAGE:
-          await SoteDBOperations.updateUsage(message.abbreviation);
+          await SoteDBOperations.updateUsage(payload.abbreviation);
           await refreshStateFromDB();
           sendResponse({ success: true });
           break;

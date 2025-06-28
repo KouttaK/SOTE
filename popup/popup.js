@@ -720,7 +720,9 @@ class PopupManager {
       title: "Excluir Abreviação",
       message: `Você tem certeza que quer excluir a abreviação "<strong>${this.escapeHtml(
         abbreviationKey
-      )}</strong>"? Esta ação não pode ser desfeita.`,
+      )}</strong>"?`,
+      confirmText: "Excluir",
+      requireInput: false,
       onConfirm: async () => {
         try {
           await this.sendMessageToBackground(

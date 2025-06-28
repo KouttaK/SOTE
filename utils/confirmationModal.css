@@ -88,6 +88,10 @@
   text-align: center;
 }
 
+.sote-cm-form-group.hidden {
+  display: none;
+}
+
 .sote-cm-form-group label {
     display: block;
     font-size: 14px;

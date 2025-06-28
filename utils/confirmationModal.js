@@ -7,16 +7,17 @@
       this.modalElement = null;
       this.titleElement = null;
       this.messageElement = null;
+      this.inputGroup = null;
       this.inputElement = null;
+      this.inputLabel = null;
       this.confirmButton = null;
       this.cancelButton = null;
-      this.onConfirmCallback = null;
+      this.config = {};
 
-      this.init();
+      this._init();
     }
 
-    init() {
-      // Load CSS if not already loaded
+    _init() {
       if (!document.getElementById("sote-confirmation-modal-styles")) {
         const link = document.createElement("link");
         link.id = "sote-confirmation-modal-styles";
@@ -25,7 +26,6 @@
         document.head.appendChild(link);
       }
 
-      // Create modal structure if it doesn't exist
       if (!document.getElementById("sote-confirmation-modal")) {
         const modalHtml = `
           <div class="sote-cm-modal-overlay">
@@ -39,13 +39,13 @@
               <div class="sote-cm-body">
                 <p id="sote-cm-message"></p>
                 <div class="sote-cm-form-group">
-                    <label for="sote-cm-input">Para confirmar, digite <strong>"Confirmo"</strong> abaixo:</label>
+                    <label for="sote-cm-input" id="sote-cm-input-label">Para confirmar, digite <strong>"Confirmo"</strong> abaixo:</label>
                     <input type="text" id="sote-cm-input" autocomplete="off">
                 </div>
               </div>
               <div class="sote-cm-footer">
-                <button id="sote-cm-cancel-btn" class="sote-cm-btn sote-cm-btn-secondary">Cancelar</button>
-                <button id="sote-cm-confirm-btn" class="sote-cm-btn sote-cm-btn-danger" disabled>Confirmar</button>
+                <button id="sote-cm-cancel-btn" class="sote-cm-btn sote-cm-btn-secondary"></button>
+                <button id="sote-cm-confirm-btn" class="sote-cm-btn sote-cm-btn-danger"></button>
               </div>
             </div>
           </div>
@@ -59,7 +59,9 @@
       this.modalElement = document.getElementById("sote-confirmation-modal");
       this.titleElement = document.getElementById("sote-cm-title");
       this.messageElement = document.getElementById("sote-cm-message");
+      this.inputGroup = this.modalElement.querySelector(".sote-cm-form-group");
       this.inputElement = document.getElementById("sote-cm-input");
+      this.inputLabel = document.getElementById("sote-cm-input-label");
       this.confirmButton = document.getElementById("sote-cm-confirm-btn");
       this.cancelButton = document.getElementById("sote-cm-cancel-btn");
 
@@ -67,17 +69,15 @@
       this.modalElement
         .querySelector(".sote-cm-modal-overlay")
         .addEventListener("click", e => {
-          if (e.target === e.currentTarget) {
-            this.hide();
-          }
+          if (e.target === e.currentTarget) this.hide();
         });
       this.inputElement.addEventListener(
         "input",
-        this.validateInput.bind(this)
+        this._validateInput.bind(this)
       );
       this.confirmButton.addEventListener(
         "click",
-        this.handleConfirm.bind(this)
+        this._handleConfirm.bind(this)
       );
       document.addEventListener("keydown", e => {
         if (
@@ -89,21 +89,43 @@
       });
     }
 
-    show({ title, message, onConfirm }) {
-      this.titleElement.textContent = title;
-      this.messageElement.innerHTML = message; // Use innerHTML to allow for <strong> tags
-      this.onConfirmCallback = onConfirm;
+    show(options) {
+      const defaults = {
+        title: "Confirmação",
+        message: "Você tem certeza?",
+        onConfirm: () => {},
+        requireInput: false,
+        confirmText: "Confirmar",
+        cancelText: "Cancelar",
+        confirmationText: "Confirmo",
+      };
+      this.config = { ...defaults, ...options };
+
+      this.titleElement.textContent = this.config.title;
+      this.messageElement.innerHTML = this.config.message;
+      this.confirmButton.textContent = this.config.confirmText;
+      this.cancelButton.textContent = this.config.cancelText;
+
+      this.inputGroup.classList.toggle("hidden", !this.config.requireInput);
+
+      if (this.config.requireInput) {
+        this.inputLabel.innerHTML = `Para confirmar, digite <strong>"${this.config.confirmationText}"</strong> abaixo:`;
+        this.inputElement.value = "";
+        this.confirmButton.disabled = true;
+      } else {
+        this.confirmButton.disabled = false;
+      }
 
       this.modalElement.classList.remove("hidden");
-      document.body.style.overflow = "hidden"; // Prevent background scrolling
-
-      // Reset state
-      this.inputElement.value = "";
-      this.confirmButton.disabled = true;
+      document.body.style.overflow = "hidden";
 
       setTimeout(() => {
         this.modalElement.classList.add("visible");
-        this.inputElement.focus();
+        if (this.config.requireInput) {
+          this.inputElement.focus();
+        } else {
+          this.confirmButton.focus();
+        }
       }, 10);
     }
 
@@ -112,33 +134,34 @@
       setTimeout(() => {
         this.modalElement.classList.add("hidden");
         document.body.style.overflow = "";
-        this.onConfirmCallback = null;
+        this.config = {};
       }, 300);
     }
 
-    validateInput() {
-      if (this.inputElement.value === "Confirmo") {
-        this.confirmButton.disabled = false;
-      } else {
-        this.confirmButton.disabled = true;
+    _validateInput() {
+      if (this.config.requireInput) {
+        this.confirmButton.disabled =
+          this.inputElement.value !== this.config.confirmationText;
       }
     }
 
-    handleConfirm() {
+    _handleConfirm() {
       if (
-        this.onConfirmCallback &&
-        typeof this.onConfirmCallback === "function"
+        this.config.onConfirm &&
+        typeof this.config.onConfirm === "function"
       ) {
-        this.onConfirmCallback();
+        this.config.onConfirm();
       }
       this.hide();
     }
   }
 
-  // Expose a single instance to the global scope
   global.SoteConfirmationModal = new ConfirmationModal();
-  // Add a simple hidden class to the head for the modal
-  const style = document.createElement("style");
-  style.textContent = ".hidden { display: none !important; }";
-  document.head.appendChild(style);
+
+  if (!document.querySelector("style[data-sote-utils]")) {
+    const style = document.createElement("style");
+    style.setAttribute("data-sote-utils", "true");
+    style.textContent = ".hidden { display: none !important; }";
+    document.head.appendChild(style);
+  }
 })(self || window);
