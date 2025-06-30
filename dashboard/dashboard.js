@@ -9,13 +9,17 @@
     categories: [],
     currentCategory: "all",
     searchTerm: "",
-    sortColumn: null,
+    sortColumn: "abbreviation",
     sortDirection: "asc",
     selectedAbbreviations: new Set(),
     currentEditingAbbreviation: null,
     currentEditingRule: null,
     currentChoiceId: null,
-    importPreviewData: [],
+    isRuleContext: false,
+    importPreviewData: {
+      abbreviations: [],
+      choices: [],
+    },
   };
 
   // ===== DOM ELEMENTS =====
@@ -97,6 +101,8 @@
       "custom-category",
       "case-sensitive",
       "enabled",
+      "btn-insert-choice",
+      "btn-edit-choice",
       "import-modal",
       "import-modal-close",
       "import-modal-cancel",
@@ -140,6 +146,8 @@
       "rule-priority",
       "add-special-date-btn",
       "special-dates-list",
+      "rule-btn-insert-choice",
+      "rule-btn-edit-choice",
       "choice-config-modal",
       "choice-modal-title",
       "choice-modal-close",
@@ -148,8 +156,6 @@
       "choice-config-form",
       "choice-options-container",
       "add-choice-option-btn",
-      "btn-edit-choice",
-      "rule-btn-edit-choice",
     ];
 
     elements = {};
@@ -172,12 +178,7 @@
     } catch (error) {
       logError("Failed to load initial data:", error);
       SoteNotifier.show("Erro ao carregar dados iniciais.", "error");
-    } finally {
-      // Garantir que o estado de loading seja removido
-      const tbody = elements["abbreviations-list"];
-      if (tbody && tbody.querySelector(".loading")) {
-        tbody.innerHTML = "";
-      }
+      showErrorState("Falha ao carregar os dados.");
     }
   }
 
@@ -185,13 +186,19 @@
     const tbody = elements["abbreviations-list"];
     if (tbody) {
       tbody.innerHTML = `
-              <tr role="row">
-                  <td colspan="9" class="loading">
-                      <div class="loading-spinner" aria-hidden="true"></div>
-                      Carregando abreviações...
-                  </td>
-              </tr>
-          `;
+        <tr role="row"><td colspan="9" class="loading">
+          <div class="loading-spinner" aria-hidden="true"></div>Carregando abreviações...
+        </td></tr>`;
+    }
+  }
+
+  function showErrorState(message) {
+    const tbody = elements["abbreviations-list"];
+    if (tbody) {
+      tbody.innerHTML = `
+        <tr><td colspan="9" style="text-align: center; padding: 2rem; color: var(--error-700);">
+          ${escapeHtml(message)}
+        </td></tr>`;
     }
   }
 
@@ -220,11 +227,11 @@
     const categories = Array.from(
       new Set(state.abbreviations.map(abbr => abbr.category).filter(Boolean))
     ).sort();
-
     const categoryList = elements["category-list"];
-    const allItem = categoryList.querySelector('[data-category="all"]');
-    categoryList.innerHTML = "";
-    if (allItem) categoryList.appendChild(allItem);
+    const allItemHTML =
+      categoryList.querySelector('[data-category="all"]')?.outerHTML ||
+      '<li class="category-item active" data-category="all" role="listitem" tabindex="0"><span>Todas</span></li>';
+    categoryList.innerHTML = allItemHTML;
 
     categories.forEach(category => {
       const li = document.createElement("li");
@@ -232,9 +239,7 @@
       li.dataset.category = category;
       li.role = "listitem";
       li.tabIndex = 0;
-      li.innerHTML = `
-        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h7"></path></svg>
-        <span>${escapeHtml(category)}</span>`;
+      li.innerHTML = `<span>${escapeHtml(category)}</span>`;
       categoryList.appendChild(li);
     });
     state.categories = categories;
@@ -292,10 +297,7 @@
     if (!tbody) return;
 
     if (state.filteredAbbreviations.length === 0) {
-      tbody.innerHTML = `
-        <tr><td colspan="9" style="text-align: center; padding: 2rem; color: #6b7280;">
-          Nenhuma abreviação encontrada.
-        </td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="9" style="text-align: center; padding: 2rem; color: #6b7280;">Nenhuma abreviação encontrada.</td></tr>`;
       return;
     }
 
@@ -308,15 +310,15 @@
   }
 
   function createAbbreviationRow(abbr) {
+    const row = document.createElement("tr");
+    row.dataset.abbreviation = abbr.abbreviation;
+
     const isSelected = state.selectedAbbreviations.has(abbr.abbreviation);
     const hasRules = abbr.rules && abbr.rules.length > 0;
     const lastUsedText = abbr.lastUsed
       ? new Date(abbr.lastUsed).toLocaleDateString("pt-BR")
       : "Nunca";
     const expansionPreview = createExpansionPreview(abbr.expansion);
-    const row = document.createElement("tr");
-    row.dataset.abbreviation = abbr.abbreviation;
-
     const titleDisplay = abbr.title
       ? `<div class="abbreviation-title-display" title="${escapeHtml(
           abbr.title
@@ -341,20 +343,11 @@
       <td style="text-align: center;">${hasRules ? "Sim" : "Não"}</td>
       <td>
         <div class="table-actions">
-          <button class="action-btn edit" title="Editar"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg></button>
-          <button class="action-btn rules" title="Regras"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"></path></svg></button>
-          <button class="action-btn delete" title="Excluir"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"><path d="M3 6h18"></path><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6z"></path><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>
+          <button class="action-btn edit" title="Editar"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg></button>
+          <button class="action-btn rules" title="Regras"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"></path></svg></button>
+          <button class="action-btn delete" title="Excluir"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"></path><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6z"></path><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>
         </div>
-      </td>
-    `;
-    // Attach styles to SVG elements for better rendering
-    row.querySelectorAll("svg").forEach(svg => {
-      svg.setAttribute("fill", "none");
-      svg.setAttribute("stroke", "currentColor");
-      svg.setAttribute("stroke-width", "2");
-      svg.setAttribute("stroke-linecap", "round");
-      svg.setAttribute("stroke-linejoin", "round");
-    });
+      </td>`;
 
     row
       .querySelector('input[type="checkbox"]')
@@ -370,7 +363,6 @@
     row
       .querySelector(".delete")
       .addEventListener("click", () => deleteAbbreviation(abbr.abbreviation));
-
     return row;
   }
 
@@ -395,6 +387,7 @@
   function showModal(title = "Adicionar Nova Abreviação") {
     elements["modal-title"].textContent = title;
     elements["modal-container"].classList.remove("hidden");
+    updateChoiceButtons(elements["expansion"].value);
     setTimeout(() => elements["title"]?.focus(), 100);
   }
 
@@ -408,7 +401,7 @@
     elements["abbreviation"].readOnly = false;
     elements["custom-category-input-container"].style.display = "none";
     state.currentEditingAbbreviation = null;
-    updateChoiceButtons();
+    updateChoiceButtons("");
   }
 
   function populateForm(abbr) {
@@ -417,7 +410,6 @@
     elements["expansion"].value = abbr.expansion;
     elements["case-sensitive"].checked = abbr.caseSensitive || false;
     elements["enabled"].checked = abbr.enabled !== false;
-
     const categorySelect = elements["category"];
     const standardCategories = [
       "Comum",
@@ -425,29 +417,23 @@
       "Trabalho",
       "Personalizada",
     ];
-    const isCustom = !standardCategories.includes(abbr.category);
-
-    if (isCustom) {
+    if (!standardCategories.includes(abbr.category)) {
       let option = categorySelect.querySelector(
         `option[value="${escapeHtml(abbr.category)}"]`
       );
       if (!option) {
-        option = document.createElement("option");
-        option.value = abbr.category;
-        option.textContent = abbr.category;
-        categorySelect.insertBefore(
+        option = new Option(abbr.category, abbr.category);
+        categorySelect.add(
           option,
           categorySelect.querySelector('option[value="Personalizada"]')
         );
       }
       categorySelect.value = abbr.category;
-      elements["custom-category-input-container"].style.display = "none";
     } else {
       categorySelect.value = abbr.category || "Comum";
-      elements["custom-category-input-container"].style.display = "none";
     }
-
-    updateChoiceButtons();
+    elements["custom-category-input-container"].style.display = "none";
+    updateChoiceButtons(abbr.expansion);
   }
 
   // ===== FORM HANDLING =====
@@ -508,9 +494,7 @@
     return true;
   }
 
-  // ===== IMPORT/EXPORT/SETTINGS/CHOICE MODALS (NEW) =====
-
-  // --- Import Modal ---
+  // ===== IMPORT/EXPORT/SETTINGS/CHOICE MODALS =====
   function showImportModal() {
     elements["import-step-1"].classList.remove("hidden");
     elements["import-step-2"].classList.add("hidden");
@@ -520,40 +504,38 @@
 
   function hideImportModal() {
     elements["import-modal"].classList.add("hidden");
-    // Reset import form
-    const dropZone = elements["import-drop-zone"];
-    dropZone.classList.remove("dragover");
+    elements["import-drop-zone"].classList.remove("dragover");
     elements["import-file-input"].value = "";
     elements["import-preview-list"].innerHTML = "";
     elements["import-summary"].innerHTML = "";
   }
 
   function handleFileSelect(event) {
-    const file = event.target.files[0];
-    if (file) {
-      processImportFile(file);
-    }
+    if (event.target.files[0]) processImportFile(event.target.files[0]);
   }
 
   function handleFileDrop(event) {
     event.preventDefault();
     event.stopPropagation();
     elements["import-drop-zone"].classList.remove("dragover");
-    const file = event.dataTransfer.files[0];
-    if (file) {
-      processImportFile(file);
-    }
+    if (event.dataTransfer.files[0])
+      processImportFile(event.dataTransfer.files[0]);
   }
 
-  function processImportFile(file) {
+  async function processImportFile(file) {
     if (!file.type.includes("json")) {
-      SoteNotifier.show("Por favor, selecione um arquivo .json.", "error");
-      return;
+      return SoteNotifier.show(
+        "Por favor, selecione um arquivo .json.",
+        "error"
+      );
     }
     const reader = new FileReader();
     reader.onload = e => {
       try {
-        const data = JSON.parse(e.target.result);
+        const rawData = JSON.parse(e.target.result);
+        const data = Array.isArray(rawData)
+          ? { abbreviations: rawData, choices: [] }
+          : rawData;
         previewImportData(data);
       } catch (error) {
         SoteNotifier.show("Arquivo JSON inválido ou corrompido.", "error");
@@ -562,55 +544,36 @@
     reader.readAsText(file);
   }
 
-  async function previewImportData(data) {
-    if (!Array.isArray(data)) {
-      SoteNotifier.show(
-        "O arquivo JSON deve conter um array de abreviações.",
-        "error"
-      );
-      return;
-    }
-
-    const previewList = elements["import-preview-list"];
-    const summary = elements["import-summary"];
-    previewList.innerHTML = "";
-    let toAdd = 0,
-      toUpdate = 0,
-      toSkip = 0;
-
+  function previewImportData(data) {
+    state.importPreviewData = data;
+    const { abbreviations: toImportAbbrs = [] } = data;
     const existingAbbrs = new Set(state.abbreviations.map(a => a.abbreviation));
+    let toAdd = 0,
+      toUpdate = 0;
 
-    state.importPreviewData = data.map(item => {
-      let status = "added";
-      if (existingAbbrs.has(item.abbreviation)) {
-        status = "updated";
-        toUpdate++;
-      } else {
-        toAdd++;
-      }
-      return { ...item, status };
+    toImportAbbrs.forEach(item => {
+      if (existingAbbrs.has(item.abbreviation)) toUpdate++;
+      else toAdd++;
     });
 
-    summary.innerHTML = `
-        <div class="summary-item added"><span class="count">${toAdd}</span>Novas</div>
-        <div class="summary-item updated"><span class="count">${toUpdate}</span>Atualizadas</div>
-        <div class="summary-item skipped"><span class="count">${toSkip}</span>Ignoradas</div>
-    `;
+    elements["import-summary"].innerHTML = `
+      <div class="summary-item added"><span class="count">${toAdd}</span>Novas</div>
+      <div class="summary-item updated"><span class="count">${toUpdate}</span>Atualizadas</div>`;
 
-    state.importPreviewData.forEach(item => {
-      const row = document.createElement("tr");
-      row.innerHTML = `
-            <td><span class="status-badge ${item.status}">${
-        item.status === "added" ? "Nova" : "Atualiza"
-      }</span></td>
-            <td>${escapeHtml(item.abbreviation)}</td>
-            <td>${escapeHtml(item.expansion.substring(0, 50))}...</td>
-            <td>${
-              item.status === "updated" ? "Sobrescreverá" : "Será adicionada"
-            }</td>
-        `;
-      previewList.appendChild(row);
-    });
+    elements["import-preview-list"].innerHTML = toImportAbbrs
+      .map(
+        item => `
+      <tr>
+        <td><span class="status-badge ${
+          existingAbbrs.has(item.abbreviation) ? "updated" : "added"
+        }">${
+          existingAbbrs.has(item.abbreviation) ? "Atualiza" : "Nova"
+        }</span></td>
+        <td>${escapeHtml(item.abbreviation)}</td>
+        <td>${escapeHtml(item.expansion.substring(0, 50))}...</td>
+      </tr>`
+      )
+      .join("");
 
     elements["import-step-1"].classList.add("hidden");
     elements["import-step-2"].classList.remove("hidden");
@@ -622,13 +585,11 @@
       'input[name="import-mode"][value="merge"]'
     ).checked;
     try {
-      await sendMessageToBackground(
-        SOTE_CONSTANTS.MESSAGE_TYPES.IMPORT_ABBREVIATIONS,
-        {
-          data: state.importPreviewData,
-          isMerge: isMerge,
-        }
-      );
+      await sendMessageToBackground(SOTE_CONSTANTS.MESSAGE_TYPES.IMPORT_DATA, {
+        data: state.importPreviewData.abbreviations,
+        choices: state.importPreviewData.choices,
+        isMerge,
+      });
       SoteNotifier.show("Dados importados com sucesso!", "success");
       hideImportModal();
     } catch (error) {
@@ -637,7 +598,6 @@
     }
   }
 
-  // --- Settings Modal ---
   function showSettingsModal() {
     loadSettings();
     elements["settings-modal"].classList.remove("hidden");
@@ -690,25 +650,44 @@
       ),
       maxChoices: parseInt(elements["setting-max-choices"].value, 10),
     };
-
     await chrome.storage.sync.set(settings);
     SoteNotifier.show("Configurações salvas!", "success");
     hideSettingsModal();
   }
 
-  // --- Export Logic ---
-  function exportData(data, filename) {
-    const blob = new Blob([JSON.stringify(data, null, 2)], {
+  async function exportData(abbreviations, filename) {
+    const choiceIds = new Set();
+    abbreviations.forEach(abbr => {
+      const expansion =
+        abbr.expansion + (abbr.rules || []).map(r => r.expansion).join(" ");
+      const matches = expansion.matchAll(/\$choice\(id=(\d+)\)\$/g);
+      for (const match of matches) {
+        choiceIds.add(parseInt(match[1], 10));
+      }
+    });
+
+    let choices = [];
+    if (choiceIds.size > 0) {
+      const allChoices =
+        (
+          await sendMessageToBackground(
+            SOTE_CONSTANTS.MESSAGE_TYPES.GET_ALL_CHOICES
+          )
+        ).data || [];
+      choices = allChoices.filter(c => choiceIds.has(c.id));
+    }
+
+    const dataToExport = { abbreviations, choices };
+    const blob = new Blob([JSON.stringify(dataToExport, null, 2)], {
       type: "application/json",
     });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
     a.download = filename;
-    document.body.appendChild(a);
     a.click();
-    document.body.removeChild(a);
     URL.revokeObjectURL(url);
+    a.remove();
     SoteNotifier.show(`Exportação "${filename}" iniciada.`, "info");
   }
 
@@ -738,12 +717,15 @@
   }
 
   // ===== CHOICE MANAGEMENT =====
-  function updateChoiceButtons() {
-    const expansion = elements["expansion"].value;
-    const insertBtn = document.getElementById("btn-insert-choice");
-    const editBtn = document.getElementById("btn-edit-choice");
+  function updateChoiceButtons(expansionText, isRule = false) {
+    const insertBtn = isRule
+      ? elements["rule-btn-insert-choice"]
+      : elements["btn-insert-choice"];
+    const editBtn = isRule
+      ? elements["rule-btn-edit-choice"]
+      : elements["btn-edit-choice"];
     if (!insertBtn || !editBtn) return;
-    const choiceMatch = expansion.match(/\$choice\(id=(\d+)\)\$/);
+    const choiceMatch = expansionText.match(/\$choice\(id=(\d+)\)\$/);
     if (choiceMatch) {
       insertBtn.classList.add("hidden");
       editBtn.classList.remove("hidden");
@@ -755,38 +737,139 @@
     }
   }
 
-  function openChoiceConfigModal() {
+  async function openChoiceConfigModal(isForRule = false) {
+    state.isRuleContext = isForRule;
+    const textarea = isForRule
+      ? elements["rule-expansion"]
+      : elements["expansion"];
+    const expansion = textarea.value;
+    const choiceMatch = expansion.match(/\$choice\(id=(\d+)\)\$/);
+    state.currentChoiceId = choiceMatch ? parseInt(choiceMatch[1], 10) : null;
+    elements["choice-modal-title"].textContent = state.currentChoiceId
+      ? "Editar Escolha"
+      : "Criar Nova Escolha";
+
+    let optionsToRender = [{ title: "", message: "" }];
     if (state.currentChoiceId) {
-      // Logic to open modal and load existing choice data
-      SoteNotifier.show(
-        `Editando escolha ID: ${state.currentChoiceId}. (Funcionalidade em desenvolvimento)`,
-        "info"
-      );
-    } else {
-      // Logic to create a new choice
-      SoteNotifier.show(
-        "Criando nova escolha. (Funcionalidade em desenvolvimento)",
-        "info"
+      try {
+        const response = await sendMessageToBackground(
+          SOTE_CONSTANTS.MESSAGE_TYPES.GET_CHOICE_CONFIG,
+          { id: state.currentChoiceId }
+        );
+        if (response && response.data && response.data.options) {
+          optionsToRender = response.data.options;
+        } else {
+          logError(
+            `Choice with ID ${state.currentChoiceId} not found or has no options.`
+          );
+          SoteNotifier.show("Escolha não encontrada.", "error");
+        }
+      } catch (error) {
+        logError("Failed to load choice config:", error);
+        SoteNotifier.show("Erro ao carregar opções da escolha.", "error");
+      }
+    }
+    renderChoiceOptions(optionsToRender);
+    elements["choice-config-modal"].classList.remove("hidden");
+  }
+
+  function renderChoiceOptions(options = []) {
+    const container = elements["choice-options-container"];
+    const template = document.getElementById("choice-option-template");
+    container.innerHTML = "";
+    (options.length > 0 ? options : [{ title: "", message: "" }]).forEach(
+      option => {
+        const clone = template.content.cloneNode(true);
+        const item = clone.querySelector(".choice-option-item");
+        item.querySelector(".choice-option-title").value = option.title || "";
+        item.querySelector(".choice-option-message").value =
+          option.message || "";
+        item
+          .querySelector(".delete-choice-option")
+          .addEventListener("click", () => item.remove());
+        container.appendChild(clone);
+      }
+    );
+  }
+
+  function handleAddChoiceOption() {
+    const maxChoices = 9;
+    if (elements["choice-options-container"].children.length >= maxChoices) {
+      return SoteNotifier.show(
+        `O limite é de ${maxChoices} opções.`,
+        "warning"
       );
     }
-    elements["choice-config-modal"].classList.remove("hidden");
+    const template = document.getElementById("choice-option-template");
+    const clone = template.content.cloneNode(true);
+    clone
+      .querySelector(".delete-choice-option")
+      .addEventListener("click", e =>
+        e.currentTarget.closest(".choice-option-item").remove()
+      );
+    elements["choice-options-container"].appendChild(clone);
+  }
+
+  async function handleSaveChoice() {
+    const options = Array.from(
+      elements["choice-options-container"].querySelectorAll(
+        ".choice-option-item"
+      )
+    )
+      .map(item => ({
+        title: item.querySelector(".choice-option-title").value.trim(),
+        message: item.querySelector(".choice-option-message").value.trim(),
+      }))
+      .filter(opt => opt.title && opt.message);
+
+    if (options.length === 0) {
+      return SoteNotifier.show(
+        "Adicione pelo menos uma opção com título e mensagem.",
+        "error"
+      );
+    }
+
+    const textarea = state.isRuleContext
+      ? elements["rule-expansion"]
+      : elements["expansion"];
+
+    try {
+      if (state.currentChoiceId) {
+        await sendMessageToBackground(
+          SOTE_CONSTANTS.MESSAGE_TYPES.UPDATE_CHOICE,
+          { choiceId: state.currentChoiceId, options }
+        );
+        SoteNotifier.show("Escolha atualizada!", "success");
+      } else {
+        const response = await sendMessageToBackground(
+          SOTE_CONSTANTS.MESSAGE_TYPES.ADD_CHOICE,
+          { options }
+        );
+        insertTextAtCursor(textarea, `$choice(id=${response.newChoiceId})$`);
+        SoteNotifier.show("Escolha criada e inserida!", "success");
+      }
+      hideChoiceConfigModal();
+    } catch (error) {
+      logError("Error saving choice:", error);
+      SoteNotifier.show("Erro ao salvar a escolha.", "error");
+    }
   }
 
   function hideChoiceConfigModal() {
     elements["choice-config-modal"].classList.add("hidden");
   }
 
-  // ===== EVENT HANDLERS =====
-  function handleCategoryChange() {
-    const isCustom = elements["category"].value === "Personalizada";
-    elements["custom-category-input-container"].style.display = isCustom
-      ? "block"
-      : "none";
-    if (isCustom) {
-      setTimeout(() => elements["custom-category"]?.focus(), 100);
-    }
+  function insertTextAtCursor(textarea, text) {
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const value = textarea.value;
+    textarea.value = value.substring(0, start) + text + value.substring(end);
+    textarea.selectionStart = textarea.selectionEnd = start + text.length;
+    textarea.focus();
+    textarea.dispatchEvent(new Event("input", { bubbles: true }));
   }
 
+  // ===== EVENT HANDLERS & INITIALIZATION =====
   function handleSearch() {
     state.searchTerm = elements["search-input"].value.trim();
     filterAndRenderAbbreviations();
@@ -796,7 +879,7 @@
     const categoryItem = event.target.closest(".category-item");
     if (!categoryItem) return;
     document
-      .querySelectorAll(".category-item")
+      .querySelectorAll(".category-item.active")
       .forEach(item => item.classList.remove("active"));
     categoryItem.classList.add("active");
     state.currentCategory = categoryItem.dataset.category;
@@ -852,7 +935,6 @@
       abbrKey =>
         state.filteredAbbreviations.some(abbr => abbr.abbreviation === abbrKey)
     ).length;
-
     elements["select-all-checkbox"].checked =
       totalVisible > 0 && selectedVisible === totalVisible;
     elements["select-all-checkbox"].indeterminate =
@@ -861,10 +943,10 @@
 
   function updateExportButtons() {
     elements["export-selected-btn"].style.display =
-      state.selectedAbbreviations.size > 0 ? "" : "none";
+      state.selectedAbbreviations.size > 0 ? "flex" : "none";
     const isCategoryView = state.currentCategory !== "all";
     elements["export-category-btn"].style.display = isCategoryView
-      ? ""
+      ? "flex"
       : "none";
     if (isCategoryView) {
       elements["export-category-btn"].querySelector(
@@ -873,7 +955,6 @@
     }
   }
 
-  // ===== ACTION FUNCTIONS =====
   function editAbbreviation(abbreviationKey) {
     const abbr = state.abbreviations.find(
       a => a.abbreviation === abbreviationKey
@@ -906,14 +987,10 @@
     });
   }
 
-  // ===== INITIALIZATION =====
   function setupEventListeners() {
-    // Toggle
     elements["enabled-toggle"].addEventListener("change", e =>
       chrome.storage.sync.set({ enabled: e.target.checked })
     );
-
-    // Search and Sort
     elements["search-input"].addEventListener(
       "input",
       debounce(handleSearch, 300)
@@ -921,23 +998,25 @@
     document
       .querySelector(".abbreviations-table thead")
       .addEventListener("click", handleSort);
-
-    // Main Actions
     elements["add-btn"].addEventListener("click", () => showModal());
     elements["category-list"].addEventListener("click", handleCategoryClick);
-
-    // Main Modal
     elements["modal-close"].addEventListener("click", hideModal);
     elements["modal-cancel"].addEventListener("click", hideModal);
     elements["abbreviation-form"].addEventListener("submit", handleFormSubmit);
-    elements["category"].addEventListener("change", handleCategoryChange);
-    elements["expansion"].addEventListener("input", updateChoiceButtons);
-
-    // Selection
+    elements["category"].addEventListener("change", () => {
+      const isCustom = elements["category"].value === "Personalizada";
+      elements["custom-category-input-container"].style.display = isCustom
+        ? "block"
+        : "none";
+      if (isCustom) setTimeout(() => elements["custom-category"]?.focus(), 100);
+    });
+    elements["expansion"].addEventListener("input", e =>
+      updateChoiceButtons(e.target.value, false)
+    );
+    elements["rule-expansion"].addEventListener("input", e =>
+      updateChoiceButtons(e.target.value, true)
+    );
     elements["select-all-checkbox"].addEventListener("change", handleSelectAll);
-
-    // --- New Listeners for Modals and Actions ---
-    // Import
     elements["import-btn"].addEventListener("click", showImportModal);
     elements["import-modal-close"].addEventListener("click", hideImportModal);
     elements["import-modal-cancel"].addEventListener("click", hideImportModal);
@@ -954,8 +1033,6 @@
     );
     elements["import-drop-zone"].addEventListener("drop", handleFileDrop);
     elements["import-modal-confirm"].addEventListener("click", confirmImport);
-
-    // Export
     elements["export-btn"].addEventListener("click", handleExportAll);
     elements["export-selected-btn"].addEventListener(
       "click",
@@ -965,8 +1042,6 @@
       "click",
       handleExportCategory
     );
-
-    // Settings
     elements["settings-btn"].addEventListener("click", showSettingsModal);
     elements["settings-modal-close"].addEventListener(
       "click",
@@ -992,10 +1067,17 @@
         },
       });
     });
-
-    // Choice Modal
+    elements["btn-insert-choice"].addEventListener("click", () =>
+      openChoiceConfigModal(false)
+    );
     elements["btn-edit-choice"].addEventListener("click", () =>
-      openChoiceConfigModal()
+      openChoiceConfigModal(false)
+    );
+    elements["rule-btn-insert-choice"].addEventListener("click", () =>
+      openChoiceConfigModal(true)
+    );
+    elements["rule-btn-edit-choice"].addEventListener("click", () =>
+      openChoiceConfigModal(true)
     );
     elements["choice-modal-close"].addEventListener(
       "click",
@@ -1005,8 +1087,11 @@
       "click",
       hideChoiceConfigModal
     );
-
-    // Global Keydowns
+    elements["add-choice-option-btn"].addEventListener(
+      "click",
+      handleAddChoiceOption
+    );
+    elements["choice-modal-save"].addEventListener("click", handleSaveChoice);
     document.addEventListener("keydown", e => {
       if (e.key === "Escape") {
         if (!elements["modal-container"].classList.contains("hidden"))
@@ -1019,30 +1104,19 @@
           hideChoiceConfigModal();
       }
     });
-
-    // Insert action buttons
-    document.querySelectorAll(".btn-insert-action").forEach(button => {
-      button.addEventListener("click", event => {
-        const action = event.target.getAttribute("data-action");
-        if (action && elements["expansion"]) {
+    document
+      .querySelectorAll(".btn-insert-action[data-action]")
+      .forEach(button => {
+        button.addEventListener("click", event => {
+          const action = event.target
+            .closest("[data-action]")
+            .getAttribute("data-action");
           const textarea = event.target
             .closest(".modal-body")
             .querySelector("textarea");
-          if (textarea) insertTextAtCursor(textarea, action);
-        }
+          if (action && textarea) insertTextAtCursor(textarea, action);
+        });
       });
-    });
-  }
-
-  function insertTextAtCursor(textarea, text) {
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-    const value = textarea.value;
-
-    textarea.value = value.substring(0, start) + text + value.substring(end);
-    textarea.setSelectionRange(start + text.length, start + text.length);
-    textarea.focus();
-    textarea.dispatchEvent(new Event("input", { bubbles: true }));
   }
 
   function setupMessageListener() {
@@ -1051,7 +1125,6 @@
         log("Dashboard recebeu STATE_UPDATED.");
         updateLocalState(message.payload);
       }
-      return true; // Keep message channel open for async responses
     });
   }
 
@@ -1064,12 +1137,9 @@
       log("Dashboard initialized successfully");
     } catch (error) {
       logError("Failed to initialize dashboard:", error);
+      showErrorState(error.message);
     }
   }
 
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", init);
-  } else {
-    init();
-  }
+  document.addEventListener("DOMContentLoaded", init);
 })();

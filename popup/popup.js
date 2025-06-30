@@ -26,8 +26,8 @@ class PopupManager {
   sendMessageToBackground(type, payload) {
     return new Promise((resolve, reject) => {
       // Validação básica dos parâmetros
-      if (!type || typeof type !== 'string') {
-        return reject(new Error('Tipo de mensagem deve ser uma string válida'));
+      if (!type || typeof type !== "string") {
+        return reject(new Error("Tipo de mensagem deve ser uma string válida"));
       }
 
       const message = { type };
@@ -299,7 +299,7 @@ class PopupManager {
         console.log("Popup recebeu STATE_UPDATED.");
         this.updateLocalState(message.payload);
       }
-      return true;
+      // Não retorne 'true' aqui para evitar o erro de canal assíncrono
     });
   }
 
@@ -442,12 +442,14 @@ class PopupManager {
     const fullExpansionTitle = this.escapeHtml(abbr.expansion);
 
     // Create title display (NOME - agora com estilo padrão)
-    const titleDisplay = abbr.title 
+    const titleDisplay = abbr.title
       ? `<div class="abbreviation-title">${this.escapeHtml(abbr.title)}</div>`
-      : '';
+      : "";
 
     // Create shortcut display (ATALHO - agora posicionado abaixo do nome)
-    const shortcutDisplay = `<div class="abbreviation-text">${this.escapeHtml(abbr.abbreviation)}</div>`;
+    const shortcutDisplay = `<div class="abbreviation-text">${this.escapeHtml(
+      abbr.abbreviation
+    )}</div>`;
 
     item.innerHTML = `
       <div class="abbreviation-details">

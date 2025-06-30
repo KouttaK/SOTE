@@ -3,10 +3,10 @@
   "use strict";
 
   const DB_NAME = global.SOTE_CONSTANTS.DB_NAME;
-  const DB_VERSION = global.SOTE_CONSTANTS.DB_VERSION; // Deve ser 4, conforme constants.js
+  const DB_VERSION = global.SOTE_CONSTANTS.DB_VERSION;
   const STORE_ABBREVIATIONS = global.SOTE_CONSTANTS.STORE_ABBREVIATIONS;
   const STORE_RULES = global.SOTE_CONSTANTS.STORE_RULES;
-  const STORE_CHOICES = global.SOTE_CONSTANTS.STORE_CHOICES; // Novo store
+  const STORE_CHOICES = global.SOTE_CONSTANTS.STORE_CHOICES;
 
   const MIGRATIONS = {
     1: db => {
@@ -37,7 +37,6 @@
         }).createIndex("abbreviationId", "abbreviationId", { unique: true });
       }
     },
-    // NOVA MIGRAÇÃO
     4: db => {
       if (!db.objectStoreNames.contains(STORE_CHOICES)) {
         db.createObjectStore(STORE_CHOICES, {
@@ -236,12 +235,10 @@
   let categoriesCacheTimestamp = 0;
   const CATEGORIES_CACHE_TTL = 5 * 60 * 1000;
 
-  // Objeto principal que será exposto globalmente
   global.TextExpanderDB = {
     openDatabase,
-    AbbreviationModel, // Expose for validation in dashboard
+    AbbreviationModel,
 
-    // --- NOVAS FUNÇÕES ADICIONADAS AQUI ---
     async addChoice(options) {
       const db = await openDatabase();
       return new Promise((resolve, reject) => {
@@ -250,8 +247,8 @@
         }
         const transaction = db.transaction(STORE_CHOICES, "readwrite");
         const store = transaction.objectStore(STORE_CHOICES);
-        const request = store.add({ options }); // Salva como { id: ..., options: [...] }
-        request.onsuccess = event => resolve(event.target.result); // Retorna o novo ID
+        const request = store.add({ options });
+        request.onsuccess = event => resolve(event.target.result);
         request.onerror = e => reject(e.target.error);
         transaction.oncomplete = () =>
           chrome.runtime
@@ -270,6 +267,18 @@
           .objectStore(STORE_CHOICES)
           .get(id);
         request.onsuccess = () => resolve(request.result || null);
+        request.onerror = e => reject(e.target.error);
+      });
+    },
+
+    async getAllChoices() {
+      const db = await openDatabase();
+      return new Promise((resolve, reject) => {
+        const request = db
+          .transaction(STORE_CHOICES, "readonly")
+          .objectStore(STORE_CHOICES)
+          .getAll();
+        request.onsuccess = () => resolve(request.result || []);
         request.onerror = e => reject(e.target.error);
       });
     },
@@ -294,7 +303,6 @@
         request.onerror = e => reject(e.target.error);
       });
     },
-    // --- FIM DAS NOVAS FUNÇÕES ---
 
     async getAllAbbreviations() {
       const db = await openDatabase();
@@ -541,12 +549,12 @@
       const db = await openDatabase();
       return new Promise((resolve, reject) => {
         const transaction = db.transaction(
-          [STORE_ABBREVIATIONS, STORE_RULES, STORE_CHOICES], // Adicionado STORE_CHOICES
+          [STORE_ABBREVIATIONS, STORE_RULES, STORE_CHOICES],
           "readwrite"
         );
         transaction.objectStore(STORE_ABBREVIATIONS).clear();
         transaction.objectStore(STORE_RULES).clear();
-        transaction.objectStore(STORE_CHOICES).clear(); // Limpa também as escolhas
+        transaction.objectStore(STORE_CHOICES).clear();
         transaction.oncomplete = () => {
           chrome.runtime
             .sendMessage({
@@ -560,108 +568,29 @@
       });
     },
 
-    async importAbbreviations(abbreviationsToImport, isMerge = true) {
+    async importData(importPayload) {
+      const {
+        data: abbreviationsToImport,
+        choices: choicesToImport = [],
+        isMerge = true,
+      } = importPayload;
+
       const db = await openDatabase();
-
-      // Passo 1: Pré-busca de dados existentes se for uma fusão
-      const existingData = new Map();
-      if (isMerge) {
-        const readTx = db.transaction(
-          [STORE_ABBREVIATIONS, STORE_RULES],
-          "readonly"
-        );
-        const abbrStore = readTx.objectStore(STORE_ABBREVIATIONS);
-        const rulesStore = readTx.objectStore(STORE_RULES);
-
-        const [abbreviations, rules] = await Promise.all([
-          new Promise((res, rej) => {
-            const r = abbrStore.getAll();
-            r.onsuccess = () => res(r.result);
-            r.onerror = e => rej(e.target.error);
-          }),
-          new Promise((res, rej) => {
-            const r = rulesStore.getAll();
-            r.onsuccess = () => res(r.result);
-            r.onerror = e => rej(e.target.error);
-          }),
-        ]);
-
-        const rulesByAbbr = new Map();
-        for (const rule of rules) {
-          if (!rulesByAbbr.has(rule.abbreviationId)) {
-            rulesByAbbr.set(rule.abbreviationId, []);
-          }
-          rulesByAbbr.get(rule.abbreviationId).push(rule);
-        }
-
-        for (const abbr of abbreviations) {
-          existingData.set(abbr.abbreviation, {
-            ...abbr,
-            rules: rulesByAbbr.get(abbr.abbreviation) || [],
-          });
-        }
-      }
-
-      // Passo 2: Executar operações de escrita em uma única transação
-      const writeTx = db.transaction(
-        [STORE_ABBREVIATIONS, STORE_RULES],
+      const tx = db.transaction(
+        [STORE_ABBREVIATIONS, STORE_RULES, STORE_CHOICES],
         "readwrite"
       );
-      const abbrStore = writeTx.objectStore(STORE_ABBREVIATIONS);
-      const rulesStore = writeTx.objectStore(STORE_RULES);
+      const abbrStore = tx.objectStore(STORE_ABBREVIATIONS);
+      const rulesStore = tx.objectStore(STORE_RULES);
+      const choiceStore = tx.objectStore(STORE_CHOICES);
       let processedCount = 0;
 
-      if (!isMerge) {
-        abbrStore.clear();
-        rulesStore.clear();
-      }
-
-      for (const abbrToImport of abbreviationsToImport) {
-        try {
-          let validatedAbbr = AbbreviationModel.validate(abbrToImport);
-
-          if (isMerge) {
-            const existing = existingData.get(validatedAbbr.abbreviation);
-            if (existing) {
-              validatedAbbr.createdAt = existing.createdAt;
-              validatedAbbr.usageCount =
-                validatedAbbr.usageCount ?? existing.usageCount;
-              validatedAbbr.lastUsed =
-                validatedAbbr.lastUsed ?? existing.lastUsed;
-
-              if (existing.rules && existing.rules.length > 0) {
-                for (const rule of existing.rules) {
-                  rulesStore.delete(rule.id);
-                }
-              }
-            }
-          }
-
-          const rulesToSave = validatedAbbr.rules || [];
-          delete validatedAbbr.rules;
-
-          abbrStore.put(validatedAbbr);
-
-          for (const rule of rulesToSave) {
-            const ruleData = {
-              ...rule,
-              abbreviationId: validatedAbbr.abbreviation,
-            };
-            delete ruleData.id;
-            rulesStore.add(ruleData);
-          }
-
-          processedCount++;
-        } catch (e) {
-          console.warn(
-            `Ignorando item durante importação: ${abbrToImport.abbreviation}`,
-            e.message
-          );
-        }
-      }
-
       return new Promise((resolve, reject) => {
-        writeTx.oncomplete = () => {
+        tx.onerror = e => {
+          console.error("Erro na transação de importação:", e.target.error);
+          reject(e.target.error);
+        };
+        tx.oncomplete = () => {
           categoriesCache = null;
           chrome.runtime
             .sendMessage({
@@ -670,10 +599,113 @@
             .catch(() => {});
           resolve(processedCount);
         };
-        writeTx.onerror = e => {
-          console.error("Erro na transação de importação:", e.target.error);
-          reject(e.target.error);
+
+        const importAbbreviations = (idMap = new Map()) => {
+          for (const abbrToImport of abbreviationsToImport) {
+            try {
+              let validatedAbbr = AbbreviationModel.validate(abbrToImport);
+
+              if (isMerge && idMap.size > 0) {
+                const replacer = (match, oldIdStr) => {
+                  const oldId = parseInt(oldIdStr, 10);
+                  return idMap.has(oldId)
+                    ? `$choice(id=${idMap.get(oldId)})$`
+                    : match;
+                };
+                validatedAbbr.expansion = validatedAbbr.expansion.replace(
+                  /\$choice\(id=(\d+)\)\$/g,
+                  replacer
+                );
+                if (validatedAbbr.rules) {
+                  validatedAbbr.rules.forEach(rule => {
+                    rule.expansion = rule.expansion.replace(
+                      /\$choice\(id=(\d+)\)\$/g,
+                      replacer
+                    );
+                  });
+                }
+              }
+
+              const rulesToSave = validatedAbbr.rules || [];
+              delete validatedAbbr.rules;
+
+              abbrStore.put(validatedAbbr);
+
+              for (const rule of rulesToSave) {
+                const ruleData = {
+                  ...rule,
+                  abbreviationId: validatedAbbr.abbreviation,
+                };
+                delete ruleData.id;
+                rulesStore.add(ruleData);
+              }
+              processedCount++;
+            } catch (e) {
+              console.warn(
+                `Ignorando item durante importação: ${abbrToImport.abbreviation}`,
+                e.message
+              );
+            }
+          }
         };
+
+        const processChoices = (choices, callback) => {
+          const idMap = new Map();
+          if (!choices || choices.length === 0) {
+            callback(idMap);
+            return;
+          }
+
+          let processedChoices = 0;
+          choices.forEach(choice => {
+            let request;
+            if (isMerge) {
+              const oldId = choice.id;
+              delete choice.id;
+              request = choiceStore.add(choice);
+              request.onsuccess = () => {
+                idMap.set(oldId, request.result);
+                processedChoices++;
+                if (processedChoices === choices.length) callback(idMap);
+              };
+            } else {
+              request = choiceStore.put(choice);
+              request.onsuccess = () => {
+                processedChoices++;
+                if (processedChoices === choices.length) callback(idMap);
+              };
+            }
+            request.onerror = () => {
+              console.warn(
+                `Não foi possível importar a escolha ID ${
+                  choice.id || "(novo)"
+                }. Pulando.`
+              );
+              processedChoices++;
+              if (processedChoices === choices.length) callback(idMap);
+            };
+          });
+        };
+
+        const startImport = () => {
+          processChoices(choicesToImport, importAbbreviations);
+        };
+
+        if (!isMerge) {
+          let storesCleared = 0;
+          const totalStores = 3;
+          const onClear = () => {
+            storesCleared++;
+            if (storesCleared === totalStores) {
+              startImport();
+            }
+          };
+          abbrStore.clear().onsuccess = onClear;
+          rulesStore.clear().onsuccess = onClear;
+          choiceStore.clear().onsuccess = onClear;
+        } else {
+          startImport();
+        }
       });
     },
 
