@@ -1,3 +1,4 @@
+// SOTE-main/utils/StateManager.js
 (function (global) {
   "use strict";
 

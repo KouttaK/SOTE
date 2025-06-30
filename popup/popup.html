@@ -159,8 +159,19 @@
           <div class="modal-body">
             <form id="abbreviation-form" novalidate>
               <div class="form-group">
+                <label for="new-title">Nome</label>
+                <input
+                  type="text"
+                  id="new-title"
+                  placeholder="Descrição opcional (máx. 50 caracteres)"
+                  maxlength="50"
+                  autocomplete="off"
+                  spellcheck="false"
+                />
+              </div>
+              <div class="form-group">
                 <label for="new-abbreviation"
-                  >Abreviação <span aria-hidden="true">*</span></label
+                  >Atalho <span aria-hidden="true">*</span></label
                 >
                 <input
                   type="text"
@@ -173,7 +184,7 @@
               </div>
               <div class="form-group">
                 <label for="new-expansion"
-                  >Expansão <span aria-hidden="true">*</span></label
+                  >Mensagem <span aria-hidden="true">*</span></label
                 >
                 <textarea
                   id="new-expansion"

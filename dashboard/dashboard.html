@@ -312,6 +312,7 @@
                           aria-label="Selecionar todas as abreviações"
                         />
                       </th>
+                      <th role="columnheader">Nome</th>
                       <th
                         class="sortable"
                         data-sort="abbreviation"
@@ -319,9 +320,9 @@
                         tabindex="0"
                         aria-sort="none"
                       >
-                        Abreviação
+                        Atalho
                       </th>
-                      <th role="columnheader">Expansão</th>
+                      <th role="columnheader">Mensagem</th>
                       <th
                         class="sortable"
                         data-sort="category"
@@ -355,7 +356,7 @@
                   </thead>
                   <tbody id="abbreviations-list" role="rowgroup">
                     <tr role="row">
-                      <td colspan="8" class="loading">
+                      <td colspan="9" class="loading">
                         <div class="loading-spinner" aria-hidden="true"></div>
                         Carregando abreviações...
                       </td>
@@ -405,8 +406,23 @@
           <form id="abbreviation-form" novalidate>
             <div class="form-grid">
               <div class="form-group">
+                <label for="title">Nome</label>
+                <input
+                  type="text"
+                  id="title"
+                  placeholder="Descrição opcional (máx. 50 caracteres)"
+                  maxlength="50"
+                  autocomplete="off"
+                  spellcheck="false"
+                  aria-describedby="title-help"
+                />
+                <div id="title-help" class="sr-only">
+                  Digite um título ou descrição opcional para a abreviação
+                </div>
+              </div>
+              <div class="form-group">
                 <label for="abbreviation"
-                  >Abreviação <span aria-hidden="true">*</span></label
+                  >Atalho <span aria-hidden="true">*</span></label
                 >
                 <input
                   type="text"
@@ -423,7 +439,7 @@
               </div>
               <div class="form-group">
                 <label for="expansion"
-                  >Expansão <span aria-hidden="true">*</span></label
+                  >Mensagem <span aria-hidden="true">*</span></label
                 >
                 <textarea
                   id="expansion"

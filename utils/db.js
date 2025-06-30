@@ -117,6 +117,13 @@
             errors.push(
               `'${key}' must be at least ${fieldSchema.minLength} characters.`
             );
+          if (
+            fieldSchema.maxLength !== undefined &&
+            value.length > fieldSchema.maxLength
+          )
+            errors.push(
+              `'${key}' must be at most ${fieldSchema.maxLength} characters.`
+            );
           if (fieldSchema.enum && !fieldSchema.enum.includes(value))
             errors.push(
               `'${key}' must be one of: ${fieldSchema.enum.join(", ")}.`
@@ -149,6 +156,7 @@
     static schema = {
       abbreviation: { required: true, type: "string", minLength: 1 },
       expansion: { required: true, type: "string" },
+      title: { type: "string", default: "", maxLength: 50 },
       category: { type: "string", default: "Comum" },
       caseSensitive: { type: "boolean", default: false },
       enabled: { type: "boolean", default: true },

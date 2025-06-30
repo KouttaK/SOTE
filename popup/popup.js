@@ -18,14 +18,24 @@ class PopupManager {
   }
 
   /**
-   * Envia uma mensagem para o service worker.
+   * Envia uma mensagem para o service worker com tratamento de erro robusto.
    * @param {string} type - O tipo da mensagem.
    * @param {object} [payload] - Os dados a serem enviados.
    * @returns {Promise<any>} - A resposta do service worker.
    */
   sendMessageToBackground(type, payload) {
     return new Promise((resolve, reject) => {
-      chrome.runtime.sendMessage({ type, payload }, response => {
+      // Validação básica dos parâmetros
+      if (!type || typeof type !== 'string') {
+        return reject(new Error('Tipo de mensagem deve ser uma string válida'));
+      }
+
+      const message = { type };
+      if (payload !== undefined) {
+        message.payload = payload;
+      }
+
+      chrome.runtime.sendMessage(message, response => {
         if (chrome.runtime.lastError) {
           return reject(new Error(chrome.runtime.lastError.message));
         }
@@ -51,8 +61,9 @@ class PopupManager {
       modalCloseBtn: "modal-close-btn",
       cancelBtn: "cancel-btn",
       saveBtn: "save-btn",
-      newAbbreviationInput: "new-abbreviation",
-      newExpansionTextarea: "new-expansion",
+      newTitleInput: "new-title", // NOME
+      newAbbreviationInput: "new-abbreviation", // ATALHO
+      newExpansionTextarea: "new-expansion", // MENSAGEM
       newCategorySelect: "new-category",
       newCaseSensitiveCheckbox: "new-case-sensitive",
       customCategoryGroup: "custom-category-group",
@@ -430,11 +441,18 @@ class PopupManager {
     const expansionPreviewHtml = this.createExpansionPreview(abbr.expansion);
     const fullExpansionTitle = this.escapeHtml(abbr.expansion);
 
+    // Create title display (NOME - agora com estilo padrão)
+    const titleDisplay = abbr.title 
+      ? `<div class="abbreviation-title">${this.escapeHtml(abbr.title)}</div>`
+      : '';
+
+    // Create shortcut display (ATALHO - agora posicionado abaixo do nome)
+    const shortcutDisplay = `<div class="abbreviation-text">${this.escapeHtml(abbr.abbreviation)}</div>`;
+
     item.innerHTML = `
       <div class="abbreviation-details">
-        <div class="abbreviation-text">${this.escapeHtml(
-          abbr.abbreviation
-        )}</div>
+        ${titleDisplay}
+        ${shortcutDisplay}
         <div class="expansion-text" title="${fullExpansionTitle}">${expansionPreviewHtml}</div>
         <div class="category-badge">${this.escapeHtml(
           abbr.category || "Comum"
@@ -486,6 +504,7 @@ class PopupManager {
         abbr => {
           const searchableText = [
             abbr.abbreviation,
+            abbr.title || "",
             abbr.expansion,
             abbr.category || "",
           ]
@@ -519,9 +538,9 @@ class PopupManager {
     this.elements.addEditModal.classList.remove("hidden");
     this.elements.addEditModal.setAttribute("aria-hidden", "false");
 
-    // Focus management
+    // Focus management - agora foca no campo "Nome" primeiro
     setTimeout(() => {
-      this.elements.newAbbreviationInput.focus();
+      this.elements.newTitleInput.focus();
     }, 50);
 
     // Trap focus within modal
@@ -532,6 +551,7 @@ class PopupManager {
   populateEditForm(abbr) {
     this.state.currentEditId = abbr.abbreviation;
     this.elements.modalTitle.textContent = "Editar Abreviação";
+    this.elements.newTitleInput.value = abbr.title || "";
     this.elements.newAbbreviationInput.value = abbr.abbreviation;
     this.elements.newAbbreviationInput.readOnly = true;
     this.elements.newExpansionTextarea.value = abbr.expansion;
@@ -545,6 +565,7 @@ class PopupManager {
   resetForm() {
     this.state.currentEditId = null;
     this.elements.modalTitle.textContent = "Adicionar Nova Abreviação";
+    this.elements.newTitleInput.value = "";
     this.elements.newAbbreviationInput.value = "";
     this.elements.newAbbreviationInput.readOnly = false;
     this.elements.newExpansionTextarea.value = "";
@@ -642,6 +663,7 @@ class PopupManager {
 
     const abbrData = {
       abbreviation: formData.abbreviation,
+      title: formData.title,
       expansion: formData.expansion,
       category: formData.category,
       caseSensitive: formData.caseSensitive,
@@ -682,6 +704,7 @@ class PopupManager {
 
     return {
       abbreviation: this.elements.newAbbreviationInput.value.trim(),
+      title: this.elements.newTitleInput.value.trim(),
       expansion: this.elements.newExpansionTextarea.value.trim(),
       category,
       caseSensitive: this.elements.newCaseSensitiveCheckbox.checked,
@@ -691,7 +714,12 @@ class PopupManager {
   // Validate form data
   validateFormData(data) {
     if (!data.abbreviation || !data.expansion) {
-      SoteNotifier.show("Abreviação e expansão são obrigatórias.", "error");
+      SoteNotifier.show("Atalho e mensagem são obrigatórios.", "error");
+      return false;
+    }
+
+    if (data.title && data.title.length > 50) {
+      SoteNotifier.show("O nome deve ter no máximo 50 caracteres.", "error");
       return false;
     }
 

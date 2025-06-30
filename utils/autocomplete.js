@@ -30,8 +30,8 @@
         chrome.runtime.onMessage.addListener((message) => {
           if (message.type === 'SETTINGS_UPDATED') {
             this.loadSettings();
-          } else if (message.type === 'ABBREVIATIONS_UPDATED') {
-            this.updateAbbreviationsCache();
+          } else if (message.type === 'STATE_UPDATED') {
+            this.updateAbbreviationsCache(message.payload);
           }
         });
       }
@@ -66,11 +66,22 @@
       }
     }
 
-    updateAbbreviationsCache() {
+    updateAbbreviationsCache(statePayload = null) {
+      if (statePayload && statePayload.abbreviations) {
+        // Usar dados do cache do StateManager
+        this.abbreviationsCache = statePayload.abbreviations.filter(abbr => abbr.enabled);
+        console.log('[Autocomplete] Cache atualizado via STATE_UPDATED:', this.abbreviationsCache.length, 'abreviações');
+        return;
+      }
+
+      // Fallback para buscar diretamente
       if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
-        chrome.runtime.sendMessage({ type: 'GET_ABBREVIATIONS' }, (response) => {
+        chrome.runtime.sendMessage({ 
+          type: SOTE_CONSTANTS.MESSAGE_TYPES.GET_STATE 
+        }, (response) => {
           if (response && response.abbreviations) {
             this.abbreviationsCache = response.abbreviations.filter(abbr => abbr.enabled);
+            console.log('[Autocomplete] Cache atualizado via GET_STATE:', this.abbreviationsCache.length, 'abreviações');
           }
         });
       }
@@ -489,8 +500,8 @@
         if (expanded) {
             if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
                 chrome.runtime.sendMessage({
-                    type: 'UPDATE_USAGE',
-                    abbreviation: suggestion.abbreviation
+                    type: SOTE_CONSTANTS.MESSAGE_TYPES.UPDATE_USAGE,
+                    payload: { abbreviation: suggestion.abbreviation } // Formato correto
                 });
             }
         }

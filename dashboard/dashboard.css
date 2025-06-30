@@ -542,7 +542,7 @@ input:checked + .toggle-slider:before {
 }
 
 .abbreviations-table td.expansion-cell {
-  max-width: 350px; /* Adjust as needed */
+  max-width: 350px;
 }
 
 .abbreviations-table td.expansion-cell > div {
@@ -554,13 +554,64 @@ input:checked + .toggle-slider:before {
   gap: var(--space-2);
 }
 
+/* Enhanced Title Cell Styling - NOME (agora com estilo padrão) */
+.abbreviations-table td.title-cell {
+  min-width: 120px;
+  max-width: 200px;
+}
 
+.abbreviation-title-display {
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--gray-800);
+  display: block;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: var(--space-1);
+}
+
+.abbreviation-title-empty {
+  color: var(--gray-400);
+  font-style: italic;
+  font-size: var(--text-sm);
+  margin-bottom: var(--space-1);
+}
+
+/* Enhanced Shortcut Cell Styling - ATALHO (agora posicionado abaixo do nome) */
+.abbreviations-table td.shortcut-cell {
+  min-width: 100px;
+}
+
+.abbreviation-shortcut-display {
+  font-family: var(--font-mono);
+  font-weight: var(--font-weight-semibold);
+  font-size: var(--text-xs);
+  color: var(--primary-700);
+  background: var(--primary-50);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--primary-200);
+  display: inline-block;
+  white-space: nowrap;
+}
+
+/* Hover effect for table rows with expanded details */
 .abbreviations-table tr {
   transition: var(--transition-fast);
+  position: relative;
 }
 
 .abbreviations-table tr:hover {
   background: var(--gray-50);
+}
+
+.abbreviations-table tr:hover .abbreviation-shortcut-display {
+  background: var(--primary-100);
+  border-color: var(--primary-300);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
 }
 
 .abbreviations-table tr:last-child td {

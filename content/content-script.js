@@ -290,17 +290,21 @@
     element.dispatchEvent(new Event("input", { bubbles: true }));
   }
 
-  function updateUsageStats(abbreviation) {
+  function updateUsageStats(abbreviationKey) {
     if (!isRuntimeAvailable()) return;
 
+    // CORREÇÃO: Enviar payload no formato correto
     chrome.runtime.sendMessage(
       {
         type: SOTE_CONSTANTS.MESSAGE_TYPES.UPDATE_USAGE,
-        abbreviation: abbreviation,
+        payload: { abbreviation: abbreviationKey } // Formato correto do payload
       },
       response => {
         if (chrome.runtime.lastError) {
           // Silent fail - não é crítico
+          log("Falha ao atualizar estatísticas de uso:", chrome.runtime.lastError.message);
+        } else if (response?.error) {
+          logError("Erro ao atualizar estatísticas:", response.error);
         }
       }
     );
@@ -312,23 +316,29 @@
     const element = event.target;
     if (isExpansionExcluded(element)) return;
     if (!isEditableElement(element)) return;
+    
     if (event.key === "Backspace" && settings.enableUndo) {
       if (element._lastExpansion) {
         handleBackspaceUndo(event);
       }
       return;
     }
+    
     const triggerName =
       TRIGGER_KEYS_MAP[event.key] || TRIGGER_KEYS_MAP[event.code];
     if (!triggerName || !settings[triggerName]) return;
+    
     const textInfo = getTextAndCursorPosition(element);
     if (!textInfo) return;
+    
     const wordInfo = findWordAtCursor(textInfo.text, textInfo.cursorPosition);
     if (!wordInfo) return;
+    
     if (typeof TextExpander?.matchAbbreviation !== "function") {
       logError("TextExpander.matchAbbreviation is not defined!");
       return;
     }
+    
     for (const abbr of abbreviationsCache) {
       if (
         TextExpander.matchAbbreviation(
@@ -442,12 +452,12 @@
           log("Content script recebeu STATE_UPDATED.");
           updateLocalState(message.payload);
           break;
-        case MESSAGE_TYPES.SETTINGS_UPDATED: // Mantido para atualizações diretas de settings, se necessário
+        case MESSAGE_TYPES.SETTINGS_UPDATED:
           settings = { ...settings, ...message.settings };
           updateAutocompleteSettings();
           break;
       }
-      return false; // Não há resposta síncrona
+      return false;
     });
   }
 
