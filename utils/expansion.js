@@ -293,7 +293,7 @@
           chrome.runtime.sendMessage(
             {
               type: SOTE_CONSTANTS.MESSAGE_TYPES.GET_CHOICE_CONFIG,
-              id: choiceId,
+              payload: { id: choiceId },
             },
             response => {
               if (chrome.runtime.lastError) {

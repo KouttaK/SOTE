@@ -562,75 +562,118 @@
 
     async importAbbreviations(abbreviationsToImport, isMerge = true) {
       const db = await openDatabase();
-      const transaction = db.transaction(
+
+      // Passo 1: Pré-busca de dados existentes se for uma fusão
+      const existingData = new Map();
+      if (isMerge) {
+        const readTx = db.transaction(
+          [STORE_ABBREVIATIONS, STORE_RULES],
+          "readonly"
+        );
+        const abbrStore = readTx.objectStore(STORE_ABBREVIATIONS);
+        const rulesStore = readTx.objectStore(STORE_RULES);
+
+        const [abbreviations, rules] = await Promise.all([
+          new Promise((res, rej) => {
+            const r = abbrStore.getAll();
+            r.onsuccess = () => res(r.result);
+            r.onerror = e => rej(e.target.error);
+          }),
+          new Promise((res, rej) => {
+            const r = rulesStore.getAll();
+            r.onsuccess = () => res(r.result);
+            r.onerror = e => rej(e.target.error);
+          }),
+        ]);
+
+        const rulesByAbbr = new Map();
+        for (const rule of rules) {
+          if (!rulesByAbbr.has(rule.abbreviationId)) {
+            rulesByAbbr.set(rule.abbreviationId, []);
+          }
+          rulesByAbbr.get(rule.abbreviationId).push(rule);
+        }
+
+        for (const abbr of abbreviations) {
+          existingData.set(abbr.abbreviation, {
+            ...abbr,
+            rules: rulesByAbbr.get(abbr.abbreviation) || [],
+          });
+        }
+      }
+
+      // Passo 2: Executar operações de escrita em uma única transação
+      const writeTx = db.transaction(
         [STORE_ABBREVIATIONS, STORE_RULES],
         "readwrite"
       );
-      const abbrStore = transaction.objectStore(STORE_ABBREVIATIONS);
-      const rulesStore = transaction.objectStore(STORE_RULES);
+      const abbrStore = writeTx.objectStore(STORE_ABBREVIATIONS);
+      const rulesStore = writeTx.objectStore(STORE_RULES);
       let processedCount = 0;
 
-      const importPromises = abbreviationsToImport.map(async abbr => {
+      if (!isMerge) {
+        abbrStore.clear();
+        rulesStore.clear();
+      }
+
+      for (const abbrToImport of abbreviationsToImport) {
         try {
-          let validatedAbbr = AbbreviationModel.validate(abbr);
+          let validatedAbbr = AbbreviationModel.validate(abbrToImport);
 
           if (isMerge) {
-            const existing = await this.getAbbreviation(
-              validatedAbbr.abbreviation
-            );
+            const existing = existingData.get(validatedAbbr.abbreviation);
             if (existing) {
               validatedAbbr.createdAt = existing.createdAt;
-              validatedAbbr.usageCount = abbr.usageCount ?? existing.usageCount;
-              validatedAbbr.lastUsed = abbr.lastUsed ?? existing.lastUsed;
+              validatedAbbr.usageCount =
+                validatedAbbr.usageCount ?? existing.usageCount;
+              validatedAbbr.lastUsed =
+                validatedAbbr.lastUsed ?? existing.lastUsed;
+
+              if (existing.rules && existing.rules.length > 0) {
+                for (const rule of existing.rules) {
+                  rulesStore.delete(rule.id);
+                }
+              }
             }
           }
 
-          const rulesIndex = rulesStore.index("abbreviationId");
-          const oldRulesReq = rulesIndex.getAll(validatedAbbr.abbreviation);
-
-          await new Promise(resolve => {
-            oldRulesReq.onsuccess = () => {
-              oldRulesReq.result.forEach(rule => rulesStore.delete(rule.id));
-              resolve();
-            };
-          });
-
-          const rulesToSave = validatedAbbr.rules;
+          const rulesToSave = validatedAbbr.rules || [];
           delete validatedAbbr.rules;
+
           abbrStore.put(validatedAbbr);
 
-          if (rulesToSave && rulesToSave.length > 0) {
-            rulesToSave.forEach(rule => {
-              const ruleData = {
-                ...rule,
-                abbreviationId: validatedAbbr.abbreviation,
-              };
-              delete ruleData.id;
-              rulesStore.add(ruleData);
-            });
+          for (const rule of rulesToSave) {
+            const ruleData = {
+              ...rule,
+              abbreviationId: validatedAbbr.abbreviation,
+            };
+            delete ruleData.id;
+            rulesStore.add(ruleData);
           }
+
           processedCount++;
         } catch (e) {
           console.warn(
-            `Ignorando item durante importação final: ${abbr.abbreviation}`,
+            `Ignorando item durante importação: ${abbrToImport.abbreviation}`,
             e.message
           );
         }
-      });
-
-      await Promise.all(importPromises);
+      }
 
       return new Promise((resolve, reject) => {
-        transaction.oncomplete = () => {
+        writeTx.oncomplete = () => {
+          categoriesCache = null;
           chrome.runtime
             .sendMessage({
               type: SOTE_CONSTANTS.MESSAGE_TYPES.ABBREVIATIONS_UPDATED,
             })
             .catch(() => {});
-          categoriesCache = null;
           resolve(processedCount);
         };
-        transaction.onerror = e => reject(e.target.error);
+        writeTx.onerror = e => {
+          console.error("Erro na transação de importação:", e.target.error);
+          reject(e.target.error);
+        };
       });
     },
 

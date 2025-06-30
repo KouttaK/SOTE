@@ -15,6 +15,7 @@
     currentEditingAbbreviation: null,
     currentEditingRule: null,
     currentChoiceId: null,
+    importPreviewData: [],
   };
 
   // ===== DOM ELEMENTS =====
@@ -46,9 +47,8 @@
 
   function sendMessageToBackground(type, payload) {
     return new Promise((resolve, reject) => {
-      // Validação básica dos parâmetros
-      if (!type || typeof type !== 'string') {
-        return reject(new Error('Tipo de mensagem deve ser uma string válida'));
+      if (!type || typeof type !== "string") {
+        return reject(new Error("Tipo de mensagem deve ser uma string válida"));
       }
 
       const message = { type };
@@ -104,18 +104,52 @@
       "import-drop-zone",
       "import-file-btn",
       "import-file-input",
+      "import-step-1",
+      "import-step-2",
+      "import-summary",
+      "import-preview-list",
       "settings-modal",
       "settings-modal-close",
       "settings-modal-cancel",
       "settings-modal-save",
+      "trigger-space",
+      "trigger-tab",
+      "trigger-enter",
+      "setting-ignore-password",
+      "exclusion-list",
+      "autocomplete-enabled",
+      "autocomplete-min-chars",
+      "autocomplete-max-suggestions",
+      "setting-max-choices",
+      "setting-undo",
+      "clear-data-btn",
       "rules-modal",
       "rules-modal-close",
       "rules-modal-cancel",
       "rules-modal-save",
+      "rules-list",
+      "add-rule-btn",
+      "rule-form",
+      "rule-type",
+      "days-section",
+      "time-section",
+      "domain-section",
+      "special-date-section",
+      "combined-rule-section",
+      "rule-expansion",
+      "rule-priority",
+      "add-special-date-btn",
+      "special-dates-list",
       "choice-config-modal",
+      "choice-modal-title",
       "choice-modal-close",
       "choice-modal-cancel",
       "choice-modal-save",
+      "choice-config-form",
+      "choice-options-container",
+      "add-choice-option-btn",
+      "btn-edit-choice",
+      "rule-btn-edit-choice",
     ];
 
     elements = {};
@@ -129,6 +163,7 @@
 
   // ===== DATA MANAGEMENT =====
   async function loadInitialData() {
+    showLoadingState();
     try {
       const response = await sendMessageToBackground(
         SOTE_CONSTANTS.MESSAGE_TYPES.GET_STATE
@@ -137,6 +172,26 @@
     } catch (error) {
       logError("Failed to load initial data:", error);
       SoteNotifier.show("Erro ao carregar dados iniciais.", "error");
+    } finally {
+      // Garantir que o estado de loading seja removido
+      const tbody = elements["abbreviations-list"];
+      if (tbody && tbody.querySelector(".loading")) {
+        tbody.innerHTML = "";
+      }
+    }
+  }
+
+  function showLoadingState() {
+    const tbody = elements["abbreviations-list"];
+    if (tbody) {
+      tbody.innerHTML = `
+              <tr role="row">
+                  <td colspan="9" class="loading">
+                      <div class="loading-spinner" aria-hidden="true"></div>
+                      Carregando abreviações...
+                  </td>
+              </tr>
+          `;
     }
   }
 
@@ -146,25 +201,19 @@
       updateCategories();
       filterAndRenderAbbreviations();
     }
-
     if (newState.settings) {
       updateToggleState(newState.settings.enabled !== false);
     }
-
     if (newState.isEnabled !== undefined) {
       updateToggleState(newState.isEnabled);
     }
   }
 
   function updateToggleState(isEnabled) {
-    if (elements["enabled-toggle"]) {
-      elements["enabled-toggle"].checked = isEnabled;
-    }
-    if (elements["status-text"]) {
-      elements["status-text"].textContent = isEnabled
-        ? "Habilitado"
-        : "Desabilitado";
-    }
+    elements["enabled-toggle"].checked = isEnabled;
+    elements["status-text"].textContent = isEnabled
+      ? "Habilitado"
+      : "Desabilitado";
   }
 
   function updateCategories() {
@@ -173,73 +222,60 @@
     ).sort();
 
     const categoryList = elements["category-list"];
-    if (!categoryList) return;
-
-    // Keep the "Todas" item and clear the rest
     const allItem = categoryList.querySelector('[data-category="all"]');
     categoryList.innerHTML = "";
-    if (allItem) {
-      categoryList.appendChild(allItem);
-    }
+    if (allItem) categoryList.appendChild(allItem);
 
     categories.forEach(category => {
       const li = document.createElement("li");
       li.className = "category-item";
-      li.setAttribute("data-category", category);
-      li.setAttribute("role", "listitem");
-      li.setAttribute("tabindex", "0");
+      li.dataset.category = category;
+      li.role = "listitem";
+      li.tabIndex = 0;
       li.innerHTML = `
-        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M4 6h16M4 12h16M4 18h7"></path>
-        </svg>
-        <span>${escapeHtml(category)}</span>
-      `;
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h7"></path></svg>
+        <span>${escapeHtml(category)}</span>`;
       categoryList.appendChild(li);
     });
-
     state.categories = categories;
   }
 
-  // ===== FILTERING AND RENDERING =====
+  // ===== FILTERING, SORTING, AND RENDERING =====
   function filterAndRenderAbbreviations() {
     let filtered = [...state.abbreviations];
 
-    // Filter by category
     if (state.currentCategory !== "all") {
-      filtered = filtered.filter(abbr => abbr.category === state.currentCategory);
+      filtered = filtered.filter(
+        abbr => abbr.category === state.currentCategory
+      );
     }
 
-    // Filter by search term
     if (state.searchTerm) {
       const searchLower = state.searchTerm.toLowerCase();
-      filtered = filtered.filter(abbr => {
-        const searchableText = [
+      filtered = filtered.filter(abbr =>
+        [
           abbr.abbreviation,
           abbr.title || "",
           abbr.expansion,
           abbr.category || "",
         ]
           .join(" ")
-          .toLowerCase();
-        return searchableText.includes(searchLower);
-      });
+          .toLowerCase()
+          .includes(searchLower)
+      );
     }
 
-    // Sort
     if (state.sortColumn) {
       filtered.sort((a, b) => {
-        let aVal = a[state.sortColumn];
-        let bVal = b[state.sortColumn];
-
-        // Handle special cases
+        let aVal = a[state.sortColumn] || "";
+        let bVal = b[state.sortColumn] || "";
         if (state.sortColumn === "lastUsed") {
-          aVal = aVal ? new Date(aVal) : new Date(0);
-          bVal = bVal ? new Date(bVal) : new Date(0);
+          aVal = aVal ? new Date(aVal).getTime() : 0;
+          bVal = bVal ? new Date(bVal).getTime() : 0;
         } else if (typeof aVal === "string") {
           aVal = aVal.toLowerCase();
-          bVal = (bVal || "").toLowerCase();
+          bVal = bVal.toLowerCase();
         }
-
         if (aVal < bVal) return state.sortDirection === "asc" ? -1 : 1;
         if (aVal > bVal) return state.sortDirection === "asc" ? 1 : -1;
         return 0;
@@ -257,28 +293,17 @@
 
     if (state.filteredAbbreviations.length === 0) {
       tbody.innerHTML = `
-        <tr>
-          <td colspan="9" style="text-align: center; padding: 2rem; color: #6b7280;">
-            ${
-              state.searchTerm || state.currentCategory !== "all"
-                ? "Nenhuma abreviação encontrada com os filtros aplicados."
-                : "Nenhuma abreviação cadastrada. Clique em 'Adicionar Nova' para começar."
-            }
-          </td>
-        </tr>
-      `;
+        <tr><td colspan="9" style="text-align: center; padding: 2rem; color: #6b7280;">
+          Nenhuma abreviação encontrada.
+        </td></tr>`;
       return;
     }
 
-    // Clear existing content
     tbody.innerHTML = "";
-
-    // Create rows with proper event listeners
     state.filteredAbbreviations.forEach(abbr => {
       const row = createAbbreviationRow(abbr);
       tbody.appendChild(row);
     });
-
     updateSelectAllCheckbox();
   }
 
@@ -288,106 +313,69 @@
     const lastUsedText = abbr.lastUsed
       ? new Date(abbr.lastUsed).toLocaleDateString("pt-BR")
       : "Nunca";
-
-    // Create expansion preview with action badges
     const expansionPreview = createExpansionPreview(abbr.expansion);
-
-    // Create row element
     const row = document.createElement("tr");
-    row.setAttribute("data-abbreviation", abbr.abbreviation);
+    row.dataset.abbreviation = abbr.abbreviation;
 
-    // Create title display (NOME - agora com estilo padrão)
-    const titleDisplay = abbr.title 
-      ? `<div class="abbreviation-title-display">${escapeHtml(abbr.title)}</div>`
+    const titleDisplay = abbr.title
+      ? `<div class="abbreviation-title-display" title="${escapeHtml(
+          abbr.title
+        )}">${escapeHtml(abbr.title)}</div>`
       : '<div class="abbreviation-title-empty">—</div>';
-
-    // Create shortcut display (ATALHO - agora posicionado abaixo do nome)
-    const shortcutDisplay = `<div class="abbreviation-shortcut-display">${escapeHtml(abbr.abbreviation)}</div>`;
+    const shortcutDisplay = `<div class="abbreviation-shortcut-display">${escapeHtml(
+      abbr.abbreviation
+    )}</div>`;
 
     row.innerHTML = `
-      <td class="checkbox-cell">
-        <input type="checkbox" ${isSelected ? "checked" : ""}>
-      </td>
-      <td class="title-cell">
-        ${titleDisplay}
-        ${shortcutDisplay}
-      </td>
-      <td class="shortcut-cell" style="display: none;">
-        ${shortcutDisplay}
-      </td>
-      <td class="expansion-cell">
-        ${expansionPreview}
-      </td>
-      <td>
-        <span class="category-badge">${escapeHtml(
-          abbr.category || "Comum"
-        )}</span>
-      </td>
+      <td class="checkbox-cell"><input type="checkbox" ${
+        isSelected ? "checked" : ""
+      }></td>
+      <td class="title-cell">${titleDisplay}</td>
+      <td class="shortcut-cell">${shortcutDisplay}</td>
+      <td class="expansion-cell">${expansionPreview}</td>
+      <td><span class="category-badge">${escapeHtml(
+        abbr.category || "Comum"
+      )}</span></td>
       <td style="text-align: center;">${abbr.usageCount || 0}</td>
-      <td style="text-align: center;">${lastUsedText}</td>
-      <td style="text-align: center;">
-        ${
-          hasRules
-            ? '<span style="color: var(--primary-600); font-weight: 600;">Sim</span>'
-            : '<span style="color: var(--gray-400);">Não</span>'
-        }
-      </td>
+      <td>${lastUsedText}</td>
+      <td style="text-align: center;">${hasRules ? "Sim" : "Não"}</td>
       <td>
         <div class="table-actions">
-          <button class="action-btn edit" title="Editar">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M12 20h9"></path>
-              <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
-            </svg>
-          </button>
-          <button class="action-btn rules" title="Regras">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"></path>
-            </svg>
-          </button>
-          <button class="action-btn delete" title="Excluir">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M3 6h18"></path>
-              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6z"></path>
-              <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-            </svg>
-          </button>
+          <button class="action-btn edit" title="Editar"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg></button>
+          <button class="action-btn rules" title="Regras"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"></path></svg></button>
+          <button class="action-btn delete" title="Excluir"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"><path d="M3 6h18"></path><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6z"></path><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>
         </div>
       </td>
     `;
-
-    // Add event listeners to the row elements
-    const checkbox = row.querySelector('input[type="checkbox"]');
-    const editBtn = row.querySelector('.action-btn.edit');
-    const rulesBtn = row.querySelector('.action-btn.rules');
-    const deleteBtn = row.querySelector('.action-btn.delete');
-
-    // Checkbox event
-    checkbox.addEventListener('change', (e) => {
-      handleRowSelection(abbr.abbreviation, e.target.checked);
+    // Attach styles to SVG elements for better rendering
+    row.querySelectorAll("svg").forEach(svg => {
+      svg.setAttribute("fill", "none");
+      svg.setAttribute("stroke", "currentColor");
+      svg.setAttribute("stroke-width", "2");
+      svg.setAttribute("stroke-linecap", "round");
+      svg.setAttribute("stroke-linejoin", "round");
     });
 
-    // Edit button event
-    editBtn.addEventListener('click', () => {
-      editAbbreviation(abbr.abbreviation);
-    });
-
-    // Rules button event
-    rulesBtn.addEventListener('click', () => {
-      openRulesModal(abbr.abbreviation);
-    });
-
-    // Delete button event
-    deleteBtn.addEventListener('click', () => {
-      deleteAbbreviation(abbr.abbreviation);
-    });
+    row
+      .querySelector('input[type="checkbox"]')
+      .addEventListener("change", e =>
+        handleRowSelection(abbr.abbreviation, e.target.checked)
+      );
+    row
+      .querySelector(".edit")
+      .addEventListener("click", () => editAbbreviation(abbr.abbreviation));
+    row
+      .querySelector(".rules")
+      .addEventListener("click", () => openRulesModal(abbr.abbreviation));
+    row
+      .querySelector(".delete")
+      .addEventListener("click", () => deleteAbbreviation(abbr.abbreviation));
 
     return row;
   }
 
   function createExpansionPreview(expansion) {
     if (typeof expansion !== "string") return "";
-
     const badges = {
       choice:
         '<span class="action-preview-badge choice-badge" title="Opção de escolha">❓ Escolha</span>',
@@ -396,100 +384,97 @@
       clipboard:
         '<span class="action-preview-badge clipboard-badge" title="Área de transferência">📋 Transf.</span>',
     };
-
-    let previewHtml = escapeHtml(expansion);
-    previewHtml = previewHtml.replace(/\$choice\(id=\d+\)\$/g, badges.choice);
-    previewHtml = previewHtml.replace(/\$cursor\$/g, badges.cursor);
-    previewHtml = previewHtml.replace(/\$transferencia\$/g, badges.clipboard);
-
-    return `<div>${previewHtml}</div>`;
+    let previewHtml = escapeHtml(expansion)
+      .replace(/\$choice\(id=\d+\)\$/g, badges.choice)
+      .replace(/\$cursor\$/g, badges.cursor)
+      .replace(/\$transferencia\$/g, badges.clipboard);
+    return `<div title="${escapeHtml(expansion)}">${previewHtml}</div>`;
   }
 
   // ===== MODAL MANAGEMENT =====
   function showModal(title = "Adicionar Nova Abreviação") {
-    if (!elements["modal-container"]) return;
-
     elements["modal-title"].textContent = title;
     elements["modal-container"].classList.remove("hidden");
-
-    // Focus on first input
-    setTimeout(() => {
-      elements["title"]?.focus(); // Agora foca no campo "Nome" primeiro
-    }, 100);
+    setTimeout(() => elements["title"]?.focus(), 100);
   }
 
   function hideModal() {
-    if (!elements["modal-container"]) return;
     elements["modal-container"].classList.add("hidden");
     resetForm();
   }
 
   function resetForm() {
-    if (!elements["abbreviation-form"]) return;
-
     elements["abbreviation-form"].reset();
     elements["abbreviation"].readOnly = false;
     elements["custom-category-input-container"].style.display = "none";
     state.currentEditingAbbreviation = null;
-
-    // Reset choice buttons
     updateChoiceButtons();
   }
 
   function populateForm(abbr) {
-    if (!abbr) return;
-
     elements["title"].value = abbr.title || "";
     elements["abbreviation"].value = abbr.abbreviation;
     elements["expansion"].value = abbr.expansion;
     elements["case-sensitive"].checked = abbr.caseSensitive || false;
     elements["enabled"].checked = abbr.enabled !== false;
 
-    // Handle category
     const categorySelect = elements["category"];
-    if (abbr.category && !["Comum", "Pessoal", "Trabalho"].includes(abbr.category)) {
-      // Custom category
-      const option = document.createElement("option");
-      option.value = abbr.category;
-      option.textContent = abbr.category;
-      categorySelect.appendChild(option);
+    const standardCategories = [
+      "Comum",
+      "Pessoal",
+      "Trabalho",
+      "Personalizada",
+    ];
+    const isCustom = !standardCategories.includes(abbr.category);
+
+    if (isCustom) {
+      let option = categorySelect.querySelector(
+        `option[value="${escapeHtml(abbr.category)}"]`
+      );
+      if (!option) {
+        option = document.createElement("option");
+        option.value = abbr.category;
+        option.textContent = abbr.category;
+        categorySelect.insertBefore(
+          option,
+          categorySelect.querySelector('option[value="Personalizada"]')
+        );
+      }
       categorySelect.value = abbr.category;
+      elements["custom-category-input-container"].style.display = "none";
     } else {
       categorySelect.value = abbr.category || "Comum";
+      elements["custom-category-input-container"].style.display = "none";
     }
 
-    // Update choice buttons
     updateChoiceButtons();
   }
 
   // ===== FORM HANDLING =====
   async function handleFormSubmit(event) {
     event.preventDefault();
-
     const formData = getFormData();
     if (!validateFormData(formData)) return;
-
     try {
       const messageType = state.currentEditingAbbreviation
         ? SOTE_CONSTANTS.MESSAGE_TYPES.UPDATE_ABBREVIATION
         : SOTE_CONSTANTS.MESSAGE_TYPES.ADD_ABBREVIATION;
-
       await sendMessageToBackground(messageType, formData);
-
       SoteNotifier.show(
         state.currentEditingAbbreviation
-          ? "Abreviação atualizada com sucesso!"
-          : "Abreviação criada com sucesso!",
+          ? "Abreviação atualizada!"
+          : "Abreviação criada!",
         "success"
       );
-
       hideModal();
     } catch (error) {
       logError("Error saving abbreviation:", error);
-      const message = error.message.includes("Key already exists")
-        ? "Essa abreviação já existe."
-        : "Erro ao salvar a abreviação.";
-      SoteNotifier.show(message, "error");
+      SoteNotifier.show(
+        error.message.includes("Key already exists")
+          ? "Essa abreviação já existe."
+          : "Erro ao salvar.",
+        "error"
+      );
     }
   }
 
@@ -498,7 +483,6 @@
     if (category === "Personalizada") {
       category = elements["custom-category"].value.trim();
     }
-
     return {
       abbreviation: elements["abbreviation"].value.trim(),
       title: elements["title"].value.trim(),
@@ -514,18 +498,243 @@
       SoteNotifier.show("Atalho e mensagem são obrigatórios.", "error");
       return false;
     }
-
-    if (data.title && data.title.length > 50) {
-      SoteNotifier.show("O nome deve ter no máximo 50 caracteres.", "error");
-      return false;
-    }
-
     if (elements["category"].value === "Personalizada" && !data.category) {
-      SoteNotifier.show("O nome da categoria personalizada é obrigatório.", "error");
+      SoteNotifier.show(
+        "O nome da categoria personalizada é obrigatório.",
+        "error"
+      );
       return false;
     }
-
     return true;
+  }
+
+  // ===== IMPORT/EXPORT/SETTINGS/CHOICE MODALS (NEW) =====
+
+  // --- Import Modal ---
+  function showImportModal() {
+    elements["import-step-1"].classList.remove("hidden");
+    elements["import-step-2"].classList.add("hidden");
+    elements["import-modal-confirm"].classList.add("hidden");
+    elements["import-modal"].classList.remove("hidden");
+  }
+
+  function hideImportModal() {
+    elements["import-modal"].classList.add("hidden");
+    // Reset import form
+    const dropZone = elements["import-drop-zone"];
+    dropZone.classList.remove("dragover");
+    elements["import-file-input"].value = "";
+    elements["import-preview-list"].innerHTML = "";
+    elements["import-summary"].innerHTML = "";
+  }
+
+  function handleFileSelect(event) {
+    const file = event.target.files[0];
+    if (file) {
+      processImportFile(file);
+    }
+  }
+
+  function handleFileDrop(event) {
+    event.preventDefault();
+    event.stopPropagation();
+    elements["import-drop-zone"].classList.remove("dragover");
+    const file = event.dataTransfer.files[0];
+    if (file) {
+      processImportFile(file);
+    }
+  }
+
+  function processImportFile(file) {
+    if (!file.type.includes("json")) {
+      SoteNotifier.show("Por favor, selecione um arquivo .json.", "error");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = e => {
+      try {
+        const data = JSON.parse(e.target.result);
+        previewImportData(data);
+      } catch (error) {
+        SoteNotifier.show("Arquivo JSON inválido ou corrompido.", "error");
+      }
+    };
+    reader.readAsText(file);
+  }
+
+  async function previewImportData(data) {
+    if (!Array.isArray(data)) {
+      SoteNotifier.show(
+        "O arquivo JSON deve conter um array de abreviações.",
+        "error"
+      );
+      return;
+    }
+
+    const previewList = elements["import-preview-list"];
+    const summary = elements["import-summary"];
+    previewList.innerHTML = "";
+    let toAdd = 0,
+      toUpdate = 0,
+      toSkip = 0;
+
+    const existingAbbrs = new Set(state.abbreviations.map(a => a.abbreviation));
+
+    state.importPreviewData = data.map(item => {
+      let status = "added";
+      if (existingAbbrs.has(item.abbreviation)) {
+        status = "updated";
+        toUpdate++;
+      } else {
+        toAdd++;
+      }
+      return { ...item, status };
+    });
+
+    summary.innerHTML = `
+        <div class="summary-item added"><span class="count">${toAdd}</span>Novas</div>
+        <div class="summary-item updated"><span class="count">${toUpdate}</span>Atualizadas</div>
+        <div class="summary-item skipped"><span class="count">${toSkip}</span>Ignoradas</div>
+    `;
+
+    state.importPreviewData.forEach(item => {
+      const row = document.createElement("tr");
+      row.innerHTML = `
+            <td><span class="status-badge ${item.status}">${
+        item.status === "added" ? "Nova" : "Atualiza"
+      }</span></td>
+            <td>${escapeHtml(item.abbreviation)}</td>
+            <td>${escapeHtml(item.expansion.substring(0, 50))}...</td>
+            <td>${
+              item.status === "updated" ? "Sobrescreverá" : "Será adicionada"
+            }</td>
+        `;
+      previewList.appendChild(row);
+    });
+
+    elements["import-step-1"].classList.add("hidden");
+    elements["import-step-2"].classList.remove("hidden");
+    elements["import-modal-confirm"].classList.remove("hidden");
+  }
+
+  async function confirmImport() {
+    const isMerge = document.querySelector(
+      'input[name="import-mode"][value="merge"]'
+    ).checked;
+    try {
+      await sendMessageToBackground(
+        SOTE_CONSTANTS.MESSAGE_TYPES.IMPORT_ABBREVIATIONS,
+        {
+          data: state.importPreviewData,
+          isMerge: isMerge,
+        }
+      );
+      SoteNotifier.show("Dados importados com sucesso!", "success");
+      hideImportModal();
+    } catch (error) {
+      logError("Error importing data:", error);
+      SoteNotifier.show("Falha ao importar dados.", "error");
+    }
+  }
+
+  // --- Settings Modal ---
+  function showSettingsModal() {
+    loadSettings();
+    elements["settings-modal"].classList.remove("hidden");
+  }
+
+  function hideSettingsModal() {
+    elements["settings-modal"].classList.add("hidden");
+  }
+
+  function loadSettings() {
+    chrome.storage.sync.get(null, settings => {
+      elements["trigger-space"].checked = settings.triggerSpace !== false;
+      elements["trigger-tab"].checked = settings.triggerTab !== false;
+      elements["trigger-enter"].checked = settings.triggerEnter !== false;
+      elements["setting-ignore-password"].checked =
+        settings.ignorePasswordFields !== false;
+      elements["setting-undo"].checked = settings.enableUndo !== false;
+      elements["exclusion-list"].value = (settings.exclusionList || []).join(
+        "\n"
+      );
+      elements["autocomplete-enabled"].checked =
+        settings.autocompleteEnabled !== false;
+      elements["autocomplete-min-chars"].value =
+        settings.autocompleteMinChars || 2;
+      elements["autocomplete-max-suggestions"].value =
+        settings.autocompleteMaxSuggestions || 5;
+      elements["setting-max-choices"].value = settings.maxChoices || 3;
+    });
+  }
+
+  async function saveSettings() {
+    const settings = {
+      triggerSpace: elements["trigger-space"].checked,
+      triggerTab: elements["trigger-tab"].checked,
+      triggerEnter: elements["trigger-enter"].checked,
+      ignorePasswordFields: elements["setting-ignore-password"].checked,
+      enableUndo: elements["setting-undo"].checked,
+      exclusionList: elements["exclusion-list"].value
+        .split("\n")
+        .map(s => s.trim())
+        .filter(Boolean),
+      autocompleteEnabled: elements["autocomplete-enabled"].checked,
+      autocompleteMinChars: parseInt(
+        elements["autocomplete-min-chars"].value,
+        10
+      ),
+      autocompleteMaxSuggestions: parseInt(
+        elements["autocomplete-max-suggestions"].value,
+        10
+      ),
+      maxChoices: parseInt(elements["setting-max-choices"].value, 10),
+    };
+
+    await chrome.storage.sync.set(settings);
+    SoteNotifier.show("Configurações salvas!", "success");
+    hideSettingsModal();
+  }
+
+  // --- Export Logic ---
+  function exportData(data, filename) {
+    const blob = new Blob([JSON.stringify(data, null, 2)], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    SoteNotifier.show(`Exportação "${filename}" iniciada.`, "info");
+  }
+
+  function handleExportAll() {
+    exportData(state.abbreviations, "sote_export_all.json");
+  }
+
+  function handleExportSelected() {
+    const selected = state.abbreviations.filter(abbr =>
+      state.selectedAbbreviations.has(abbr.abbreviation)
+    );
+    if (selected.length > 0) {
+      exportData(selected, "sote_export_selected.json");
+    }
+  }
+
+  function handleExportCategory() {
+    if (state.currentCategory !== "all") {
+      const categoryData = state.abbreviations.filter(
+        abbr => abbr.category === state.currentCategory
+      );
+      exportData(
+        categoryData,
+        `sote_export_${state.currentCategory.toLowerCase()}.json`
+      );
+    }
   }
 
   // ===== CHOICE MANAGEMENT =====
@@ -533,11 +742,8 @@
     const expansion = elements["expansion"].value;
     const insertBtn = document.getElementById("btn-insert-choice");
     const editBtn = document.getElementById("btn-edit-choice");
-
     if (!insertBtn || !editBtn) return;
-
     const choiceMatch = expansion.match(/\$choice\(id=(\d+)\)\$/);
-
     if (choiceMatch) {
       insertBtn.classList.add("hidden");
       editBtn.classList.remove("hidden");
@@ -549,398 +755,130 @@
     }
   }
 
-  // ===== RULES MODAL FUNCTIONALITY =====
-  function openRulesModal(abbreviationKey) {
-    const abbr = state.abbreviations.find(a => a.abbreviation === abbreviationKey);
-    if (!abbr) {
-      SoteNotifier.show("Abreviação não encontrada.", "error");
-      return;
-    }
-
-    state.currentEditingAbbreviation = abbreviationKey;
-    
-    // Show rules modal
-    const rulesModal = elements["rules-modal"];
-    if (rulesModal) {
-      rulesModal.classList.remove("hidden");
-      
-      // Update modal title
-      const modalTitle = document.getElementById("rules-modal-title");
-      if (modalTitle) {
-        modalTitle.textContent = `Regras para "${abbreviationKey}"`;
-      }
-      
-      // Load existing rules
-      loadRulesForAbbreviation(abbr);
-    }
-  }
-
-  function loadRulesForAbbreviation(abbr) {
-    const rulesList = document.getElementById("rules-list");
-    if (!rulesList) return;
-
-    rulesList.innerHTML = "";
-
-    if (abbr.rules && abbr.rules.length > 0) {
-      abbr.rules.forEach(rule => {
-        const ruleElement = createRuleElement(rule);
-        rulesList.appendChild(ruleElement);
-      });
-    } else {
-      rulesList.innerHTML = `
-        <div style="text-align: center; padding: 2rem; color: #6b7280; font-style: italic;">
-          Nenhuma regra configurada para esta abreviação.
-        </div>
-      `;
-    }
-  }
-
-  function createRuleElement(rule) {
-    const ruleDiv = document.createElement("div");
-    ruleDiv.className = "rule-item";
-    ruleDiv.setAttribute("data-rule-id", rule.id || "");
-
-    let ruleDetails = "";
-    switch (rule.type) {
-      case "dayOfWeek":
-        const dayNames = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
-        const selectedDays = rule.days ? rule.days.map(d => dayNames[d]).join(", ") : "";
-        ruleDetails = `Dias: ${selectedDays}`;
-        break;
-      case "timeRange":
-        ruleDetails = `Horário: ${rule.startHour || "00"}:${String(rule.startMinute || 0).padStart(2, "0")} até ${rule.endHour || "23"}:${String(rule.endMinute || 59).padStart(2, "0")}`;
-        break;
-      case "domain":
-        ruleDetails = `Domínios: ${rule.domains ? rule.domains.join(", ") : ""}`;
-        break;
-      case "specialDate":
-        const dates = rule.specialDates ? rule.specialDates.map(d => `${d.day}/${d.month}`).join(", ") : "";
-        ruleDetails = `Datas especiais: ${dates}`;
-        break;
-      case "combined":
-        ruleDetails = `Regra combinada (${rule.logicalOperator || "AND"})`;
-        break;
-      default:
-        ruleDetails = "Regra personalizada";
-    }
-
-    ruleDiv.innerHTML = `
-      <div class="rule-header">
-        <span class="rule-type">${getRuleTypeName(rule.type)}</span>
-        <div class="rule-actions">
-          <button class="action-btn edit-rule" title="Editar regra">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M12 20h9"></path>
-              <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
-            </svg>
-          </button>
-          <button class="action-btn delete-rule" title="Excluir regra">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M3 6h18"></path>
-              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6z"></path>
-              <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-            </svg>
-          </button>
-        </div>
-      </div>
-      <div class="rule-details">${ruleDetails}</div>
-      <div class="rule-expansion">
-        <strong>Expansão:</strong> ${escapeHtml(rule.expansion || "")}
-      </div>
-    `;
-
-    // Add event listeners
-    const editBtn = ruleDiv.querySelector('.edit-rule');
-    const deleteBtn = ruleDiv.querySelector('.delete-rule');
-
-    editBtn.addEventListener('click', () => editRule(rule));
-    deleteBtn.addEventListener('click', () => deleteRule(rule));
-
-    return ruleDiv;
-  }
-
-  function getRuleTypeName(type) {
-    const typeNames = {
-      dayOfWeek: "Dia da Semana",
-      timeRange: "Horário",
-      domain: "Domínio",
-      specialDate: "Data Especial",
-      combined: "Combinada"
-    };
-    return typeNames[type] || type;
-  }
-
-  function editRule(rule) {
-    // Show rule form and populate with rule data
-    const ruleForm = document.getElementById("rule-form");
-    if (ruleForm) {
-      ruleForm.classList.remove("hidden");
-      populateRuleForm(rule);
-      state.currentEditingRule = rule;
-    }
-  }
-
-  function populateRuleForm(rule) {
-    // Populate form fields based on rule data
-    const ruleTypeSelect = document.getElementById("rule-type");
-    if (ruleTypeSelect) {
-      ruleTypeSelect.value = rule.type;
-      handleRuleTypeChange(); // Show appropriate sections
-    }
-
-    const expansionTextarea = document.getElementById("rule-expansion");
-    if (expansionTextarea) {
-      expansionTextarea.value = rule.expansion || "";
-    }
-
-    const priorityInput = document.getElementById("rule-priority");
-    if (priorityInput) {
-      priorityInput.value = rule.priority || 0;
-    }
-
-    // Populate specific fields based on rule type
-    switch (rule.type) {
-      case "dayOfWeek":
-        if (rule.days) {
-          rule.days.forEach(day => {
-            const checkbox = document.querySelector(`input[name="rule-day"][value="${day}"]`);
-            if (checkbox) checkbox.checked = true;
-          });
-        }
-        break;
-      case "timeRange":
-        document.getElementById("start-hour").value = rule.startHour || "";
-        document.getElementById("start-minute").value = rule.startMinute || "";
-        document.getElementById("end-hour").value = rule.endHour || "";
-        document.getElementById("end-minute").value = rule.endMinute || "";
-        break;
-      case "domain":
-        const domainsTextarea = document.getElementById("domains");
-        if (domainsTextarea && rule.domains) {
-          domainsTextarea.value = rule.domains.join("\n");
-        }
-        break;
-      case "specialDate":
-        // Handle special dates
-        if (rule.specialDates) {
-          const specialDatesList = document.getElementById("special-dates-list");
-          if (specialDatesList) {
-            specialDatesList.innerHTML = "";
-            rule.specialDates.forEach(date => {
-              addSpecialDateItem(date.month, date.day);
-            });
-          }
-        }
-        break;
-    }
-  }
-
-  function deleteRule(rule) {
-    SoteConfirmationModal.show({
-      title: "Excluir Regra",
-      message: `Você tem certeza que quer excluir esta regra?`,
-      confirmText: "Excluir",
-      requireInput: false,
-      onConfirm: async () => {
-        try {
-          await sendMessageToBackground(
-            SOTE_CONSTANTS.MESSAGE_TYPES.DELETE_RULE,
-            { ruleId: rule.id }
-          );
-          SoteNotifier.show("Regra excluída com sucesso!", "success");
-          
-          // Reload rules for current abbreviation
-          const abbr = state.abbreviations.find(a => a.abbreviation === state.currentEditingAbbreviation);
-          if (abbr) {
-            loadRulesForAbbreviation(abbr);
-          }
-        } catch (error) {
-          logError("Error deleting rule:", error);
-          SoteNotifier.show("Erro ao excluir regra.", "error");
-        }
-      },
-    });
-  }
-
-  function handleRuleTypeChange() {
-    const ruleType = document.getElementById("rule-type").value;
-    
-    // Hide all sections first
-    document.getElementById("days-section").classList.add("hidden");
-    document.getElementById("time-section").classList.add("hidden");
-    document.getElementById("domain-section").classList.add("hidden");
-    document.getElementById("special-date-section").classList.add("hidden");
-    document.getElementById("combined-rule-section").classList.add("hidden");
-
-    // Show relevant section
-    switch (ruleType) {
-      case "dayOfWeek":
-        document.getElementById("days-section").classList.remove("hidden");
-        break;
-      case "timeRange":
-        document.getElementById("time-section").classList.remove("hidden");
-        break;
-      case "domain":
-        document.getElementById("domain-section").classList.remove("hidden");
-        break;
-      case "specialDate":
-        document.getElementById("special-date-section").classList.remove("hidden");
-        break;
-      case "combined":
-        document.getElementById("combined-rule-section").classList.remove("hidden");
-        break;
-    }
-  }
-
-  function addSpecialDateItem(month = "", day = "") {
-    const template = document.getElementById("special-date-item-template");
-    const specialDatesList = document.getElementById("special-dates-list");
-    
-    if (template && specialDatesList) {
-      const clone = template.content.cloneNode(true);
-      const monthInput = clone.querySelector(".special-date-month");
-      const dayInput = clone.querySelector(".special-date-day");
-      const deleteBtn = clone.querySelector(".delete-special-date");
-
-      if (month) monthInput.value = month;
-      if (day) dayInput.value = day;
-
-      deleteBtn.addEventListener('click', (e) => {
-        e.target.closest('.special-date-item').remove();
-      });
-
-      specialDatesList.appendChild(clone);
-    }
-  }
-
-  async function saveRule() {
-    const ruleData = getRuleFormData();
-    if (!validateRuleData(ruleData)) return;
-
-    try {
-      const messageType = state.currentEditingRule
-        ? SOTE_CONSTANTS.MESSAGE_TYPES.UPDATE_RULE
-        : SOTE_CONSTANTS.MESSAGE_TYPES.ADD_RULE;
-
-      if (state.currentEditingRule) {
-        ruleData.id = state.currentEditingRule.id;
-      }
-
-      ruleData.abbreviationId = state.currentEditingAbbreviation;
-
-      await sendMessageToBackground(messageType, ruleData);
-
+  function openChoiceConfigModal() {
+    if (state.currentChoiceId) {
+      // Logic to open modal and load existing choice data
       SoteNotifier.show(
-        state.currentEditingRule ? "Regra atualizada!" : "Regra criada!",
-        "success"
+        `Editando escolha ID: ${state.currentChoiceId}. (Funcionalidade em desenvolvimento)`,
+        "info"
       );
+    } else {
+      // Logic to create a new choice
+      SoteNotifier.show(
+        "Criando nova escolha. (Funcionalidade em desenvolvimento)",
+        "info"
+      );
+    }
+    elements["choice-config-modal"].classList.remove("hidden");
+  }
 
-      // Reset form and reload rules
-      resetRuleForm();
-      const abbr = state.abbreviations.find(a => a.abbreviation === state.currentEditingAbbreviation);
-      if (abbr) {
-        loadRulesForAbbreviation(abbr);
-      }
-    } catch (error) {
-      logError("Error saving rule:", error);
-      SoteNotifier.show("Erro ao salvar regra.", "error");
+  function hideChoiceConfigModal() {
+    elements["choice-config-modal"].classList.add("hidden");
+  }
+
+  // ===== EVENT HANDLERS =====
+  function handleCategoryChange() {
+    const isCustom = elements["category"].value === "Personalizada";
+    elements["custom-category-input-container"].style.display = isCustom
+      ? "block"
+      : "none";
+    if (isCustom) {
+      setTimeout(() => elements["custom-category"]?.focus(), 100);
     }
   }
 
-  function getRuleFormData() {
-    const ruleType = document.getElementById("rule-type").value;
-    const expansion = document.getElementById("rule-expansion").value.trim();
-    const priority = parseInt(document.getElementById("rule-priority").value) || 0;
-
-    const ruleData = {
-      type: ruleType,
-      expansion,
-      priority
-    };
-
-    switch (ruleType) {
-      case "dayOfWeek":
-        const selectedDays = Array.from(document.querySelectorAll('input[name="rule-day"]:checked'))
-          .map(cb => parseInt(cb.value));
-        ruleData.days = selectedDays;
-        break;
-      case "timeRange":
-        ruleData.startHour = parseInt(document.getElementById("start-hour").value) || 0;
-        ruleData.startMinute = parseInt(document.getElementById("start-minute").value) || 0;
-        ruleData.endHour = parseInt(document.getElementById("end-hour").value) || 23;
-        ruleData.endMinute = parseInt(document.getElementById("end-minute").value) || 59;
-        break;
-      case "domain":
-        const domainsText = document.getElementById("domains").value.trim();
-        ruleData.domains = domainsText ? domainsText.split("\n").map(d => d.trim()).filter(d => d) : [];
-        break;
-      case "specialDate":
-        const specialDates = Array.from(document.querySelectorAll('.special-date-item')).map(item => {
-          const month = parseInt(item.querySelector('.special-date-month').value);
-          const day = parseInt(item.querySelector('.special-date-day').value);
-          return { month, day };
-        }).filter(date => date.month && date.day);
-        ruleData.specialDates = specialDates;
-        break;
-    }
-
-    return ruleData;
+  function handleSearch() {
+    state.searchTerm = elements["search-input"].value.trim();
+    filterAndRenderAbbreviations();
   }
 
-  function validateRuleData(data) {
-    if (!data.expansion) {
-      SoteNotifier.show("A expansão da regra é obrigatória.", "error");
-      return false;
-    }
-
-    switch (data.type) {
-      case "dayOfWeek":
-        if (!data.days || data.days.length === 0) {
-          SoteNotifier.show("Selecione pelo menos um dia da semana.", "error");
-          return false;
-        }
-        break;
-      case "domain":
-        if (!data.domains || data.domains.length === 0) {
-          SoteNotifier.show("Digite pelo menos um domínio.", "error");
-          return false;
-        }
-        break;
-      case "specialDate":
-        if (!data.specialDates || data.specialDates.length === 0) {
-          SoteNotifier.show("Adicione pelo menos uma data especial.", "error");
-          return false;
-        }
-        break;
-    }
-
-    return true;
+  function handleCategoryClick(event) {
+    const categoryItem = event.target.closest(".category-item");
+    if (!categoryItem) return;
+    document
+      .querySelectorAll(".category-item")
+      .forEach(item => item.classList.remove("active"));
+    categoryItem.classList.add("active");
+    state.currentCategory = categoryItem.dataset.category;
+    filterAndRenderAbbreviations();
   }
 
-  function resetRuleForm() {
-    const ruleForm = document.getElementById("rule-form");
-    if (ruleForm) {
-      ruleForm.reset();
-      ruleForm.classList.add("hidden");
-      
-      // Clear special dates
-      const specialDatesList = document.getElementById("special-dates-list");
-      if (specialDatesList) {
-        specialDatesList.innerHTML = "";
-      }
-      
-      // Uncheck all day checkboxes
-      document.querySelectorAll('input[name="rule-day"]').forEach(cb => cb.checked = false);
-      
-      state.currentEditingRule = null;
+  function handleSort(event) {
+    const th = event.target.closest("th.sortable");
+    if (!th) return;
+    const column = th.dataset.sort;
+    if (state.sortColumn === column) {
+      state.sortDirection = state.sortDirection === "asc" ? "desc" : "asc";
+    } else {
+      state.sortColumn = column;
+      state.sortDirection = "asc";
+    }
+    document.querySelectorAll("th.sortable").forEach(header => {
+      header.classList.remove("sorted-asc", "sorted-desc");
+      header.setAttribute("aria-sort", "none");
+    });
+    th.classList.add(`sorted-${state.sortDirection}`);
+    th.setAttribute(
+      "aria-sort",
+      state.sortDirection === "asc" ? "ascending" : "descending"
+    );
+    filterAndRenderAbbreviations();
+  }
+
+  function handleRowSelection(abbreviation, isSelected) {
+    if (isSelected) state.selectedAbbreviations.add(abbreviation);
+    else state.selectedAbbreviations.delete(abbreviation);
+    updateSelectAllCheckbox();
+    updateExportButtons();
+  }
+
+  function handleSelectAll(event) {
+    const isSelected = event.target.checked;
+    state.selectedAbbreviations.clear();
+    if (isSelected) {
+      state.filteredAbbreviations.forEach(abbr =>
+        state.selectedAbbreviations.add(abbr.abbreviation)
+      );
+    }
+    document
+      .querySelectorAll('#abbreviations-list input[type="checkbox"]')
+      .forEach(checkbox => (checkbox.checked = isSelected));
+    updateExportButtons();
+  }
+
+  function updateSelectAllCheckbox() {
+    const totalVisible = state.filteredAbbreviations.length;
+    const selectedVisible = Array.from(state.selectedAbbreviations).filter(
+      abbrKey =>
+        state.filteredAbbreviations.some(abbr => abbr.abbreviation === abbrKey)
+    ).length;
+
+    elements["select-all-checkbox"].checked =
+      totalVisible > 0 && selectedVisible === totalVisible;
+    elements["select-all-checkbox"].indeterminate =
+      selectedVisible > 0 && selectedVisible < totalVisible;
+  }
+
+  function updateExportButtons() {
+    elements["export-selected-btn"].style.display =
+      state.selectedAbbreviations.size > 0 ? "" : "none";
+    const isCategoryView = state.currentCategory !== "all";
+    elements["export-category-btn"].style.display = isCategoryView
+      ? ""
+      : "none";
+    if (isCategoryView) {
+      elements["export-category-btn"].querySelector(
+        "span"
+      ).textContent = `Exportar Categoria "${state.currentCategory}"`;
     }
   }
 
   // ===== ACTION FUNCTIONS =====
   function editAbbreviation(abbreviationKey) {
-    const abbr = state.abbreviations.find(a => a.abbreviation === abbreviationKey);
+    const abbr = state.abbreviations.find(
+      a => a.abbreviation === abbreviationKey
+    );
     if (!abbr) return;
-
     state.currentEditingAbbreviation = abbreviationKey;
     elements["abbreviation"].readOnly = true;
     populateForm(abbr);
@@ -953,15 +891,13 @@
       message: `Você tem certeza que quer excluir a abreviação "<strong>${escapeHtml(
         abbreviationKey
       )}</strong>"?`,
-      confirmText: "Excluir",
-      requireInput: false,
       onConfirm: async () => {
         try {
           await sendMessageToBackground(
             SOTE_CONSTANTS.MESSAGE_TYPES.DELETE_ABBREVIATION,
             { abbreviationKey }
           );
-          SoteNotifier.show("Abreviação excluída com sucesso!", "success");
+          SoteNotifier.show("Abreviação excluída!", "success");
         } catch (error) {
           logError("Error deleting abbreviation:", error);
           SoteNotifier.show("Erro ao excluir abreviação.", "error");
@@ -970,153 +906,118 @@
     });
   }
 
-  // ===== EVENT HANDLERS =====
-  function handleCategoryChange() {
-    const isCustom = elements["category"].value === "Personalizada";
-    elements["custom-category-input-container"].style.display = isCustom
-      ? "block"
-      : "none";
-
-    if (isCustom) {
-      setTimeout(() => elements["custom-category"]?.focus(), 100);
-    }
-  }
-
-  function handleSearch() {
-    state.searchTerm = elements["search-input"].value.trim().toLowerCase();
-    filterAndRenderAbbreviations();
-  }
-
-  function handleCategoryClick(event) {
-    const categoryItem = event.target.closest(".category-item");
-    if (!categoryItem) return;
-
-    // Update active state
-    document.querySelectorAll(".category-item").forEach(item => {
-      item.classList.remove("active");
-    });
-    categoryItem.classList.add("active");
-
-    // Update state and filter
-    state.currentCategory = categoryItem.getAttribute("data-category");
-    filterAndRenderAbbreviations();
-    updateExportButtons();
-  }
-
-  function handleSort(event) {
-    const th = event.target.closest("th.sortable");
-    if (!th) return;
-
-    const column = th.getAttribute("data-sort");
-    if (state.sortColumn === column) {
-      state.sortDirection = state.sortDirection === "asc" ? "desc" : "asc";
-    } else {
-      state.sortColumn = column;
-      state.sortDirection = "asc";
-    }
-
-    // Update sort indicators
-    document.querySelectorAll("th.sortable").forEach(header => {
-      header.classList.remove("sorted-asc", "sorted-desc");
-    });
-    th.classList.add(`sorted-${state.sortDirection}`);
-
-    filterAndRenderAbbreviations();
-  }
-
-  function handleRowSelection(abbreviation, isSelected) {
-    if (isSelected) {
-      state.selectedAbbreviations.add(abbreviation);
-    } else {
-      state.selectedAbbreviations.delete(abbreviation);
-    }
-    updateSelectAllCheckbox();
-    updateExportButtons();
-  }
-
-  function handleSelectAll(isSelected) {
-    state.selectedAbbreviations.clear();
-    if (isSelected) {
-      state.filteredAbbreviations.forEach(abbr => {
-        state.selectedAbbreviations.add(abbr.abbreviation);
-      });
-    }
-
-    // Update checkboxes
-    document.querySelectorAll('input[type="checkbox"]').forEach(checkbox => {
-      if (checkbox.id !== "select-all-checkbox") {
-        checkbox.checked = isSelected;
-      }
-    });
-
-    updateExportButtons();
-  }
-
-  function updateSelectAllCheckbox() {
-    const selectAllCheckbox = elements["select-all-checkbox"];
-    if (!selectAllCheckbox) return;
-
-    const totalVisible = state.filteredAbbreviations.length;
-    const selectedVisible = state.filteredAbbreviations.filter(abbr =>
-      state.selectedAbbreviations.has(abbr.abbreviation)
-    ).length;
-
-    selectAllCheckbox.checked = totalVisible > 0 && selectedVisible === totalVisible;
-    selectAllCheckbox.indeterminate = selectedVisible > 0 && selectedVisible < totalVisible;
-  }
-
-  function updateExportButtons() {
-    const hasSelected = state.selectedAbbreviations.size > 0;
-    const hasCategory = state.currentCategory !== "all";
-
-    if (elements["export-selected-btn"]) {
-      elements["export-selected-btn"].style.display = hasSelected ? "block" : "none";
-    }
-
-    if (elements["export-category-btn"]) {
-      elements["export-category-btn"].style.display = hasCategory ? "block" : "none";
-      if (hasCategory) {
-        const categoryName = state.currentCategory;
-        elements["export-category-btn"].querySelector("span").textContent = `Exportar "${categoryName}"`;
-      }
-    }
-  }
-
   // ===== INITIALIZATION =====
   function setupEventListeners() {
     // Toggle
-    elements["enabled-toggle"]?.addEventListener("change", event => {
-      chrome.storage.sync.set({ enabled: event.target.checked });
+    elements["enabled-toggle"].addEventListener("change", e =>
+      chrome.storage.sync.set({ enabled: e.target.checked })
+    );
+
+    // Search and Sort
+    elements["search-input"].addEventListener(
+      "input",
+      debounce(handleSearch, 300)
+    );
+    document
+      .querySelector(".abbreviations-table thead")
+      .addEventListener("click", handleSort);
+
+    // Main Actions
+    elements["add-btn"].addEventListener("click", () => showModal());
+    elements["category-list"].addEventListener("click", handleCategoryClick);
+
+    // Main Modal
+    elements["modal-close"].addEventListener("click", hideModal);
+    elements["modal-cancel"].addEventListener("click", hideModal);
+    elements["abbreviation-form"].addEventListener("submit", handleFormSubmit);
+    elements["category"].addEventListener("change", handleCategoryChange);
+    elements["expansion"].addEventListener("input", updateChoiceButtons);
+
+    // Selection
+    elements["select-all-checkbox"].addEventListener("change", handleSelectAll);
+
+    // --- New Listeners for Modals and Actions ---
+    // Import
+    elements["import-btn"].addEventListener("click", showImportModal);
+    elements["import-modal-close"].addEventListener("click", hideImportModal);
+    elements["import-modal-cancel"].addEventListener("click", hideImportModal);
+    elements["import-file-btn"].addEventListener("click", () =>
+      elements["import-file-input"].click()
+    );
+    elements["import-file-input"].addEventListener("change", handleFileSelect);
+    elements["import-drop-zone"].addEventListener("dragover", e => {
+      e.preventDefault();
+      e.target.classList.add("dragover");
+    });
+    elements["import-drop-zone"].addEventListener("dragleave", e =>
+      e.target.classList.remove("dragover")
+    );
+    elements["import-drop-zone"].addEventListener("drop", handleFileDrop);
+    elements["import-modal-confirm"].addEventListener("click", confirmImport);
+
+    // Export
+    elements["export-btn"].addEventListener("click", handleExportAll);
+    elements["export-selected-btn"].addEventListener(
+      "click",
+      handleExportSelected
+    );
+    elements["export-category-btn"].addEventListener(
+      "click",
+      handleExportCategory
+    );
+
+    // Settings
+    elements["settings-btn"].addEventListener("click", showSettingsModal);
+    elements["settings-modal-close"].addEventListener(
+      "click",
+      hideSettingsModal
+    );
+    elements["settings-modal-cancel"].addEventListener(
+      "click",
+      hideSettingsModal
+    );
+    elements["settings-modal-save"].addEventListener("click", saveSettings);
+    elements["clear-data-btn"].addEventListener("click", () => {
+      SoteConfirmationModal.show({
+        title: "Apagar Todos os Dados",
+        message:
+          "Esta ação é irreversível e apagará TODAS as suas abreviações, regras e configurações. Tem certeza?",
+        requireInput: true,
+        confirmationText: "Apagar Tudo",
+        onConfirm: async () => {
+          await sendMessageToBackground(
+            SOTE_CONSTANTS.MESSAGE_TYPES.CLEAR_ALL_DATA
+          );
+          SoteNotifier.show("Todos os dados foram apagados.", "success");
+        },
+      });
     });
 
-    // Search
-    elements["search-input"]?.addEventListener("input", debounce(handleSearch, 300));
+    // Choice Modal
+    elements["btn-edit-choice"].addEventListener("click", () =>
+      openChoiceConfigModal()
+    );
+    elements["choice-modal-close"].addEventListener(
+      "click",
+      hideChoiceConfigModal
+    );
+    elements["choice-modal-cancel"].addEventListener(
+      "click",
+      hideChoiceConfigModal
+    );
 
-    // Category navigation
-    elements["category-list"]?.addEventListener("click", handleCategoryClick);
-
-    // Add button
-    elements["add-btn"]?.addEventListener("click", () => showModal());
-
-    // Modal controls
-    elements["modal-close"]?.addEventListener("click", hideModal);
-    elements["modal-cancel"]?.addEventListener("click", hideModal);
-    elements["abbreviation-form"]?.addEventListener("submit", handleFormSubmit);
-
-    // Category change
-    elements["category"]?.addEventListener("change", handleCategoryChange);
-
-    // Expansion textarea change for choice buttons
-    elements["expansion"]?.addEventListener("input", updateChoiceButtons);
-
-    // Sort headers
-    document.querySelectorAll("th.sortable").forEach(th => {
-      th.addEventListener("click", handleSort);
-    });
-
-    // Select all checkbox
-    elements["select-all-checkbox"]?.addEventListener("change", event => {
-      handleSelectAll(event.target.checked);
+    // Global Keydowns
+    document.addEventListener("keydown", e => {
+      if (e.key === "Escape") {
+        if (!elements["modal-container"].classList.contains("hidden"))
+          hideModal();
+        if (!elements["import-modal"].classList.contains("hidden"))
+          hideImportModal();
+        if (!elements["settings-modal"].classList.contains("hidden"))
+          hideSettingsModal();
+        if (!elements["choice-config-modal"].classList.contains("hidden"))
+          hideChoiceConfigModal();
+      }
     });
 
     // Insert action buttons
@@ -1124,45 +1025,12 @@
       button.addEventListener("click", event => {
         const action = event.target.getAttribute("data-action");
         if (action && elements["expansion"]) {
-          insertTextAtCursor(elements["expansion"], action);
+          const textarea = event.target
+            .closest(".modal-body")
+            .querySelector("textarea");
+          if (textarea) insertTextAtCursor(textarea, action);
         }
       });
-    });
-
-    // Modal backdrop click
-    elements["modal-container"]?.addEventListener("click", event => {
-      if (event.target === elements["modal-container"]) {
-        hideModal();
-      }
-    });
-
-    // Rules modal events
-    elements["rules-modal-close"]?.addEventListener("click", () => {
-      elements["rules-modal"].classList.add("hidden");
-      resetRuleForm();
-    });
-
-    elements["rules-modal-cancel"]?.addEventListener("click", () => {
-      resetRuleForm();
-    });
-
-    elements["rules-modal-save"]?.addEventListener("click", saveRule);
-
-    // Add rule button
-    document.getElementById("add-rule-btn")?.addEventListener("click", () => {
-      const ruleForm = document.getElementById("rule-form");
-      if (ruleForm) {
-        ruleForm.classList.remove("hidden");
-        state.currentEditingRule = null;
-      }
-    });
-
-    // Rule type change
-    document.getElementById("rule-type")?.addEventListener("change", handleRuleTypeChange);
-
-    // Add special date button
-    document.getElementById("add-special-date-btn")?.addEventListener("click", () => {
-      addSpecialDateItem();
     });
   }
 
@@ -1174,8 +1042,6 @@
     textarea.value = value.substring(0, start) + text + value.substring(end);
     textarea.setSelectionRange(start + text.length, start + text.length);
     textarea.focus();
-
-    // Trigger input event
     textarea.dispatchEvent(new Event("input", { bubbles: true }));
   }
 
@@ -1185,11 +1051,10 @@
         log("Dashboard recebeu STATE_UPDATED.");
         updateLocalState(message.payload);
       }
-      return false;
+      return true; // Keep message channel open for async responses
     });
   }
 
-  // ===== MAIN INITIALIZATION =====
   async function init() {
     try {
       initializeElements();
@@ -1202,7 +1067,6 @@
     }
   }
 
-  // Start when DOM is ready
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", init);
   } else {
