@@ -171,7 +171,7 @@
                   id="export-selected-btn"
                   role="listitem"
                   tabindex="0"
-                  style="display: none;"
+                  style="display: none"
                 >
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
@@ -199,7 +199,7 @@
                   id="export-category-btn"
                   role="listitem"
                   tabindex="0"
-                  style="display: none;"
+                  style="display: none"
                 >
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
@@ -627,7 +627,7 @@
                 />
               </div>
             </div>
-            <div class="form-group" style="margin-top: 20px;">
+            <div class="form-group" style="margin-top: 20px">
               <label>Modo de Importação:</label>
               <div class="radio-group">
                 <label
@@ -985,7 +985,7 @@
                   min="0"
                   max="23"
                   placeholder="HH"
-                  style="width: 80px;"
+                  style="width: 80px"
                 /><span>:</span
                 ><input
                   type="number"
@@ -993,7 +993,7 @@
                   min="0"
                   max="59"
                   placeholder="MM"
-                  style="width: 80px;"
+                  style="width: 80px"
                 /><span>&nbsp;até&nbsp;</span
                 ><input
                   type="number"
@@ -1001,7 +1001,7 @@
                   min="0"
                   max="23"
                   placeholder="HH"
-                  style="width: 80px;"
+                  style="width: 80px"
                 /><span>:</span
                 ><input
                   type="number"
@@ -1009,7 +1009,7 @@
                   min="0"
                   max="59"
                   placeholder="MM"
-                  style="width: 80px;"
+                  style="width: 80px"
                 />
               </div>
             </div>
@@ -1028,7 +1028,7 @@
                 type="button"
                 id="add-special-date-btn"
                 class="btn btn-secondary"
-                style="margin-top: 8px;"
+                style="margin-top: 8px"
               >
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
@@ -1148,7 +1148,11 @@
             </div>
             <div
               class="modal-footer"
-              style="padding: 1rem 0 0 0; border-top: none; background: transparent;"
+              style="
+                padding: 1rem 0 0 0;
+                border-top: none;
+                background: transparent;
+              "
             >
               <button
                 id="rules-modal-cancel"
@@ -1207,7 +1211,7 @@
               type="button"
               id="add-choice-option-btn"
               class="btn btn-secondary"
-              style="margin-top: 1rem;"
+              style="margin-top: 1rem"
             >
               Adicionar Opção
             </button>
@@ -1225,7 +1229,7 @@
     </div>
 
     <template id="special-date-item-template">
-      <div class="date-range special-date-item" style="margin-bottom: 8px;">
+      <div class="date-range special-date-item" style="margin-bottom: 8px">
         <input
           type="number"
           class="special-date-month"
@@ -1313,6 +1317,7 @@
       </div>
     </template>
 
+    <script src="../utils/dexie.js"></script>
     <script src="../utils/constants.js"></script>
     <script src="../utils/db.js"></script>
     <script src="../utils/notifier.js"></script>

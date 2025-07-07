@@ -21,6 +21,7 @@
     {
       "matches": ["<all_urls>"],
       "js": [
+        "utils/dexie.js",
         "utils/constants.js",
         "utils/choiceSelectionModal.js",
         "utils/expansion.js",
@@ -38,6 +39,7 @@
   "web_accessible_resources": [
     {
       "resources": [
+        "utils/dexie.js",
         "utils/constants.js",
         "utils/db.js",
         "utils/expansion.js",

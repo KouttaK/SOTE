@@ -41,29 +41,20 @@
     },
 
     /**
-     * Popula o banco de dados com abreviações padrão se não existirem.
+     * Popula o banco de dados com abreviações padrão se estiver vazio.
      */
     async seedInitialDataIfNeeded() {
       try {
-        const db = await global.TextExpanderDB.openDatabase();
-        const store = db
-          .transaction(global.SOTE_CONSTANTS.STORE_ABBREVIATIONS, "readonly")
-          .objectStore(global.SOTE_CONSTANTS.STORE_ABBREVIATIONS);
-
-        const countRequest = store.count();
-        const existingCount = await new Promise((resolve, reject) => {
-          countRequest.onsuccess = () => resolve(countRequest.result);
-          countRequest.onerror = () => reject(countRequest.error);
-        });
+        // A sintaxe do Dexie para contar é muito mais limpa
+        const existingCount = await global.TextExpanderDB.abbreviations.count();
 
         if (existingCount === 0) {
           log("O banco de dados está vazio. Populando com dados padrão...");
           const defaultAbbreviations = this.getDefaultAbbreviations();
 
-          await Promise.all(
-            defaultAbbreviations.map(abbr =>
-              global.TextExpanderDB.addAbbreviation(abbr)
-            )
+          // bulkAdd é a forma mais performática de inserir múltiplos itens
+          await global.TextExpanderDB.abbreviations.bulkAdd(
+            defaultAbbreviations
           );
 
           log(
