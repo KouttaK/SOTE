@@ -419,6 +419,15 @@
 
       element.setSelectionRange(newCursorPos, newCursorPos);
       element.dispatchEvent(new Event("input", { bubbles: true }));
+
+      // Notificar o service-worker sobre o uso da abreviação
+      if (chrome.runtime && chrome.runtime.sendMessage) {
+        chrome.runtime.sendMessage({
+          type: SOTE_CONSTANTS.MESSAGE_TYPES.UPDATE_USAGE,
+          payload: { abbreviation: abbreviationText },
+        });
+      }
+
       return true;
     }
     return false;
@@ -519,6 +528,15 @@
           new Event("input", { bubbles: true, composed: true })
         );
       }
+
+      // Notificar o service-worker sobre o uso da abreviação
+      if (chrome.runtime && chrome.runtime.sendMessage) {
+        chrome.runtime.sendMessage({
+          type: SOTE_CONSTANTS.MESSAGE_TYPES.UPDATE_USAGE,
+          payload: { abbreviation: abbreviationText },
+        });
+      }
+
       return true;
     }
     return false;

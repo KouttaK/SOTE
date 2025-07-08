@@ -34,8 +34,6 @@
         caseSensitive: false,
         enabled: true,
         createdAt: timestamp,
-        lastUsed: null,
-        usageCount: 0,
         rules: [],
       }));
     },

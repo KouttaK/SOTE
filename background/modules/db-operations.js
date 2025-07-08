@@ -104,9 +104,9 @@
     },
 
     /**
-     * Atualiza as estatísticas de uso de uma abreviação de forma otimizada.
-     * @param {string} abbreviationKey - A abreviação a ser atualizada.
-     * @returns {Promise<boolean>} True se a atualização foi bem-sucedida.
+     * Função mantida para compatibilidade - não atualiza mais estatísticas.
+     * @param {string} abbreviationKey - A abreviação (parâmetro mantido para compatibilidade).
+     * @returns {Promise<boolean>} Sempre retorna true para manter compatibilidade.
      */
     async updateUsage(abbreviationKey) {
       if (!abbreviationKey) {
@@ -116,111 +116,36 @@
         );
       }
 
+      log(
+        `Função updateUsage chamada para '${abbreviationKey}' - estatísticas desabilitadas.`
+      );
+
+      // Notifica sobre atualização de estado sem modificar estatísticas
       try {
-        // Estratégia 1: Tentar usar Dexie.increment primeiro (mais eficiente)
-        const result = await global.TextExpanderDB.abbreviations.update(
-          abbreviationKey,
-          {
-            usageCount: Dexie.increment(1),
-            lastUsed: new Date().toISOString(),
-          }
-        );
-
-        // Se retornou 0, significa que a abreviação não existe
-        if (result === 0) {
-          log(
-            `Abreviação '${abbreviationKey}' não encontrada para atualização de uso.`
-          );
-          return false;
-        }
-
-        log(`Uso atualizado para '${abbreviationKey}' usando Dexie.increment.`);
-        return true;
-      } catch (error) {
-        log(
-          `Dexie.increment falhou para '${abbreviationKey}', tentando método manual...`
-        );
-
-        // Estratégia 2: Fallback para método manual
-        return await this._updateUsageManually(abbreviationKey);
-      }
-    },
-
-    /**
-     * Método manual para atualizar uso quando Dexie.increment falha.
-     * @param {string} abbreviationKey - A abreviação a ser atualizada.
-     * @returns {Promise<boolean>} True se a atualização foi bem-sucedida.
-     * @private
-     */
-    async _updateUsageManually(abbreviationKey) {
-      try {
-        return await global.TextExpanderDB.transaction(
-          "rw",
-          global.TextExpanderDB.abbreviations,
-          async () => {
-            // Buscar a abreviação atual
-            const abbreviation = await global.TextExpanderDB.abbreviations.get(
-              abbreviationKey
-            );
-
-            if (!abbreviation) {
-              log(
-                `Abreviação '${abbreviationKey}' não encontrada no método manual.`
-              );
-              return false;
-            }
-
-            // Incrementar manualmente
-            const newUsageCount = (abbreviation.usageCount || 0) + 1;
-            const newLastUsed = new Date().toISOString();
-
-            // Atualizar com os novos valores
-            await global.TextExpanderDB.abbreviations.update(abbreviationKey, {
-              usageCount: newUsageCount,
-              lastUsed: newLastUsed,
-            });
-
-            log(
-              `Uso atualizado manualmente para '${abbreviationKey}': ${newUsageCount} usos.`
-            );
-            return true;
-          }
-        );
-      } catch (error) {
+        const stateManager = await global.stateManagerSingleton.getInstance();
+        const updatedState = await stateManager.getState();
+        global.SoteBroadcaster.broadcastStateUpdate(updatedState);
+      } catch (broadcastError) {
         logError(
-          `Falha na atualização manual de uso para '${abbreviationKey}':`,
-          error
-        );
-        throw new SoteErrorManager.DatabaseError(
-          `Não foi possível atualizar o uso da abreviação '${abbreviationKey}'.`,
-          error
+          "Falha ao notificar sobre atualização de estado:",
+          broadcastError
         );
       }
+
+      return true;
     },
 
     /**
      * Atualiza uso em segundo plano sem bloquear outras operações.
-     * @param {string} abbreviationKey - A abreviação a ser atualizada.
+     * Função mantida para compatibilidade - não faz mais nada.
+     * @param {string} abbreviationKey - A abreviação (parâmetro mantido para compatibilidade).
      * @returns {Promise<void>} Promise que resolve imediatamente.
      */
     async updateUsageBackground(abbreviationKey) {
-      // Executa a atualização em segundo plano
-      this.updateUsage(abbreviationKey).catch(error => {
-        logError(
-          `Falha na atualização de uso em segundo plano para '${abbreviationKey}':`,
-          error
-        );
-
-        // Reporta o erro mas não propaga para não afetar outras operações
-        SoteErrorManager.Logger.error(
-          "Falha na atualização de uso em segundo plano",
-          {
-            abbreviationKey,
-            error: error.toJSON ? error.toJSON() : error.message,
-            timestamp: new Date().toISOString(),
-          }
-        );
-      });
+      log(
+        `Função updateUsageBackground chamada para '${abbreviationKey}' - estatísticas desabilitadas.`
+      );
+      // Função mantida para compatibilidade - não faz mais nada
     },
 
     /**

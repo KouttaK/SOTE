@@ -32,13 +32,6 @@
         this.currentHistoryIndex = 0;
       }
 
-      // Performance monitoring
-      this.performanceMetrics = {
-        stateUpdates: 0,
-        subscriberNotifications: 0,
-        averageNotificationTime: 0,
-      };
-
       this._setupDevtools();
     }
 
@@ -145,7 +138,6 @@
      * @returns {Promise<void>}
      */
     async setState(updater, actionType = "STATE_UPDATE") {
-      const startTime = performance.now();
       const oldState = this.state;
 
       try {
@@ -175,9 +167,6 @@
           // Notify subscribers
           await this._notifySubscribers(oldState, newState);
 
-          // Update performance metrics
-          this.performanceMetrics.stateUpdates++;
-
           // DevTools integration
           if (this.devtools) {
             this.devtools.send(actionType, newState);
@@ -188,10 +177,6 @@
             console.group(`🔄 State Update: ${actionType}`);
             console.log("Previous State:", oldState);
             console.log("New State:", newState);
-            console.log(
-              "Update Time:",
-              `${(performance.now() - startTime).toFixed(2)}ms`
-            );
             console.groupEnd();
           }
         }
@@ -252,7 +237,6 @@
      * @private
      */
     async _notifySubscribers(oldState, newState) {
-      const startTime = performance.now();
       const notifications = [];
 
       // Global subscribers
@@ -276,13 +260,6 @@
 
       // Wait for all notifications
       await Promise.all(notifications);
-
-      // Update performance metrics
-      const notificationTime = performance.now() - startTime;
-      this.performanceMetrics.subscriberNotifications++;
-      this.performanceMetrics.averageNotificationTime =
-        (this.performanceMetrics.averageNotificationTime + notificationTime) /
-        2;
     }
 
     /**
@@ -407,14 +384,6 @@
     reset(newState) {
       const resetState = newState || this.history?.[0] || {};
       this.setState(resetState, "RESET");
-    }
-
-    /**
-     * Get performance metrics
-     * @returns {object} Performance metrics
-     */
-    getMetrics() {
-      return { ...this.performanceMetrics };
     }
 
     /**

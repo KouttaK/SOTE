@@ -186,7 +186,7 @@
     const tbody = elements["abbreviations-list"];
     if (tbody) {
       tbody.innerHTML = `
-        <tr role="row"><td colspan="9" class="loading">
+        <tr role="row"><td colspan="7" class="loading">
           <div class="loading-spinner" aria-hidden="true"></div>Carregando abreviações...
         </td></tr>`;
     }
@@ -196,7 +196,7 @@
     const tbody = elements["abbreviations-list"];
     if (tbody) {
       tbody.innerHTML = `
-        <tr><td colspan="9" style="text-align: center; padding: 2rem; color: var(--error-700);">
+        <tr><td colspan="7" style="text-align: center; padding: 2rem; color: var(--error-700);">
           ${escapeHtml(message)}
         </td></tr>`;
     }
@@ -274,10 +274,7 @@
       filtered.sort((a, b) => {
         let aVal = a[state.sortColumn] || "";
         let bVal = b[state.sortColumn] || "";
-        if (state.sortColumn === "lastUsed") {
-          aVal = aVal ? new Date(aVal).getTime() : 0;
-          bVal = bVal ? new Date(bVal).getTime() : 0;
-        } else if (typeof aVal === "string") {
+        if (typeof aVal === "string") {
           aVal = aVal.toLowerCase();
           bVal = bVal.toLowerCase();
         }
@@ -297,7 +294,7 @@
     if (!tbody) return;
 
     if (state.filteredAbbreviations.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="9" style="text-align: center; padding: 2rem; color: #6b7280;">Nenhuma abreviação encontrada.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; padding: 2rem; color: #6b7280;">Nenhuma abreviação encontrada.</td></tr>`;
       return;
     }
 
@@ -315,9 +312,6 @@
 
     const isSelected = state.selectedAbbreviations.has(abbr.abbreviation);
     const hasRules = abbr.rules && abbr.rules.length > 0;
-    const lastUsedText = abbr.lastUsed
-      ? new Date(abbr.lastUsed).toLocaleDateString("pt-BR")
-      : "Nunca";
     const expansionPreview = createExpansionPreview(abbr.expansion);
     const titleDisplay = abbr.title
       ? `<div class="abbreviation-title-display" title="${escapeHtml(
@@ -338,8 +332,6 @@
       <td><span class="category-badge">${escapeHtml(
         abbr.category || "Comum"
       )}</span></td>
-      <td style="text-align: center;">${abbr.usageCount || 0}</td>
-      <td>${lastUsedText}</td>
       <td style="text-align: center;">${hasRules ? "Sim" : "Não"}</td>
       <td>
         <div class="table-actions">

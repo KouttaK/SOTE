@@ -33,7 +33,6 @@
       GET_ALL_CHOICES: "GET_ALL_CHOICES", // Novo
 
       // Outras ações
-      UPDATE_USAGE: "UPDATE_USAGE",
       SETTINGS_UPDATED: "SETTINGS_UPDATED",
     },
   };

@@ -24,13 +24,10 @@
   // 2. Define o schema do banco de dados
   // A sintaxe é muito mais simples: "primaryKey,index1,index2,..."
   db.version(DB_VERSION).stores({
-    [STORE_ABBREVIATIONS]: "abbreviation, category, lastUsed, usageCount", // "abbreviation" é a chave primária
+    [STORE_ABBREVIATIONS]: "abbreviation, category", // "abbreviation" é a chave primária
     [STORE_RULES]: "++id, abbreviationId", // "++id" para auto-incremento
     [STORE_CHOICES]: "++id", // "++id" para auto-incremento
   });
-
-  // Mapeia as classes de modelo para as tabelas para validação (opcional, mas boa prática)
-  // Isso não é mais necessário, pois a validação será feita antes de chamar o Dexie.
 
   // 3. Exporta a instância do DB para ser usada em outros módulos
   global.TextExpanderDB = db;

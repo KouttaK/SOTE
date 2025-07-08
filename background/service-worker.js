@@ -335,6 +335,9 @@
   // ===== INSTÂNCIA SINGLETON =====
   const stateManagerSingleton = new StateManagerSingleton();
 
+  // Disponibilizar no escopo global para os módulos
+  global.stateManagerSingleton = stateManagerSingleton;
+
   // ===== CORE LOGIC =====
   async function refreshStateFromDB() {
     const transactionId = `refresh_${Date.now()}_${Math.random()
@@ -409,21 +412,26 @@
         .toString(36)
         .substr(2, 9)}`;
       try {
-        if (!message || typeof message !== "object")
-          throw SoteErrorManager.createError(
-            "Mensagem inválida recebida",
-            SoteErrorManager.ERROR_CODES.PERMANENT.INVALID_DATA_FORMAT,
-            "PERMANENT",
-            { transactionId, message }
-          );
+        if (!message || typeof message !== "object") {
+          // Ignorar mensagens inválidas ou que não são objetos
+          return;
+        }
+
         const { type, payload } = message;
-        if (!type)
-          throw SoteErrorManager.createError(
-            "Tipo de mensagem não especificado",
-            SoteErrorManager.ERROR_CODES.PERMANENT.MISSING_REQUIRED_FIELD,
-            "PERMANENT",
-            { transactionId, message }
+
+        // Correção: Se a mensagem não tiver um 'type', ela não é para este handler.
+        // Apenas ignore em vez de lançar um erro.
+        if (!type) {
+          SoteErrorManager.Logger.debug(
+            "Mensagem recebida sem tipo, ignorando.",
+            {
+              transactionId,
+              message,
+              sender: sender?.tab?.url || sender?.id,
+            }
           );
+          return;
+        }
 
         SoteErrorManager.Logger.debug("Processando mensagem", {
           transactionId,
@@ -533,22 +541,6 @@
           case MESSAGE_TYPES.GET_ALL_CHOICES:
             const allChoices = await global.TextExpanderDB.choices.toArray();
             sendResponse({ success: true, data: allChoices });
-            break;
-
-          case MESSAGE_TYPES.UPDATE_USAGE:
-            if (!payload?.abbreviation)
-              throw SoteErrorManager.createError(
-                "Payload.abbreviation obrigatório para UPDATE_USAGE",
-                SoteErrorManager.ERROR_CODES.PERMANENT.MISSING_REQUIRED_FIELD,
-                "PERMANENT",
-                { transactionId, type, payload }
-              );
-
-            // Atualização completamente em segundo plano (não bloqueia)
-            SoteDBOperations.updateUsageBackground(payload.abbreviation);
-
-            // Responde imediatamente
-            sendResponse({ success: true });
             break;
 
           default:
